@@ -1,0 +1,34 @@
+视频号直播答疑助手 · Windows 下载与测试
+
+推荐下载地址：
+https://github.com/HarveyWho/video-channels-ai-assistant/releases
+
+一、下载独立程序
+1. 在最新测试版本的 Assets 中下载 Live Answer Assistant Windows.zip。
+2. 右键“全部解压”，进入 Live Answer Assistant 文件夹。
+3. 双击 Live Answer Assistant.exe，无需安装 Python。
+4. 保留旁边的 _internal 文件夹，不要只复制 EXE。
+5. 这是尚未代码签名的开源测试程序。请核对来源和 SHA256，保留安全软件保护；遇到阻止运行也可选择仓库首页的 Python 源码方式。
+
+二、连接 DeepSeek
+1. 在 https://platform.deepseek.com/api_keys 创建自己的 API Key，确认 API 账户余额。
+2. 打开“设置 DeepSeek”，粘贴密钥，填写直播主题和真实参考资料。
+3. 点击“测试连接”，成功后点“应用设置”。密钥只在本次运行中保留，不用发送给维护者。
+
+三、测试弹幕与提词
+1. 打开视频号直播伴侣，保持评论列表可见。
+2. 点击“选择弹幕区域”，在截图上框选评论文字，再点“使用这块区域”。
+3. 把助手和提词窗口移动到评论区域之外，点击“开始监听”。
+4. 第一帧旧弹幕会跳过；发送一条新的“请问怎么报名？”测试。
+5. 确认问题入队、DeepSeek 答案逐字出现、提词窗口大字可读。
+6. 连续发送两条不同问题，当前答案应该保留；读完点击“下一条”，或在提词窗口按 Ctrl + 右方向键。
+7. 检查重复弹幕不会连续入队；检查“暂停”能停止处理后续问题。
+8. 检查直播预览没有采集到密钥、私人资料或不准备公开的提词内容。
+
+四、问题反馈
+https://github.com/HarveyWho/video-channels-ai-assistant/issues
+
+请提供 Windows 版本、显示缩放、操作步骤和脱敏截图；不要上传密钥、私人聊天或个人信息。
+屏幕 OCR 可能漏读高速滚动弹幕；自动构建自检不等于真实视频号和 DeepSeek 连接已经验证。请先内部试播，再考虑正式直播。
+
+源码备用流程、完整说明和当前验证状态见仓库 README。
