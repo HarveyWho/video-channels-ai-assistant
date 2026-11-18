@@ -192,7 +192,7 @@ class QueueTests(unittest.TestCase):
             target=Path(folder)/"settings.json"
             with patch('app.CONFIG',target):
                 obj.save_config()
-            content=target.read_text()
+            content=target.read_text(encoding="utf-8")
             self.assertNotIn(obj.key,content)
             self.assertEqual(json.loads(content)['context'],obj.context)
 
