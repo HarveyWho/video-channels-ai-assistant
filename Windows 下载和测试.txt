@@ -4,7 +4,7 @@
 https://github.com/HarveyWho/video-channels-ai-assistant/releases
 
 一、下载独立程序
-1. 在最新测试版本的 Assets 中下载 Live Answer Assistant Windows.zip。
+1. 在最新测试版本的 Assets 中下载 Live.Answer.Assistant.Windows.zip。
 2. 右键“全部解压”，进入 Live Answer Assistant 文件夹。
 3. 双击 Live Answer Assistant.exe，无需安装 Python。
 4. 保留旁边的 _internal 文件夹，不要只复制 EXE。

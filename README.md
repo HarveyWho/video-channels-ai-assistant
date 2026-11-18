@@ -7,12 +7,14 @@ Windows 视频号直播伴侣开播时，框选评论区域，助手在本机识
 ## Windows 下载与启动（推荐）
 
 1. 打开 [Releases 下载页](https://github.com/HarveyWho/video-channels-ai-assistant/releases)。进入最新的测试版本。
-2. 在 **Assets** 中下载 **`Live Answer Assistant Windows.zip`**。这是包含运行环境的 Windows x64 程序包。若这个文件尚未出现，表示构建尚未完成，请稍后刷新。
+2. 在 **Assets** 中下载 **`Live.Answer.Assistant.Windows.zip`**。这是包含运行环境的 Windows x64 程序包。若这个文件尚未出现，表示构建尚未完成，请稍后刷新。
 3. 右键压缩包，选择 **全部解压**。不要直接在压缩包里运行，也不要把 EXE 单独从文件夹里拖出来。
 4. 进入解压后的 `Live Answer Assistant` 文件夹，双击 **`Live Answer Assistant.exe`**。此方式无需另装 Python。
 5. 本程序目前没有代码签名。若 Windows 阻止运行，请核对下载来源和同一 Release 的 `SHA256.txt`，保留安全软件保护。也可以使用下方的源码方式运行。
 
 请完整保留程序旁边的 `_internal` 文件夹，它包含本地 OCR 组件和模型。运行需要连接 DeepSeek 的网络；API 按用量收费。
+
+校验下载文件时，可在 PowerShell 中运行 `Get-FileHash .\Live.Answer.Assistant.Windows.zip -Algorithm SHA256`，将结果与同一 Release 的 `SHA256.txt` 第一段哈希值比较。GitHub 可能将上传文件名的空格转换成点，因此以下载页实际文件名为准。
 
 ## 配置 DeepSeek
 

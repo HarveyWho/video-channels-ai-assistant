@@ -49,7 +49,7 @@ def main():
                 shutil.copy2(path,target)
     output=root/"release"
     output.mkdir(exist_ok=True)
-    archive=output/"Live Answer Assistant Windows.zip"
+    archive=output/"Live.Answer.Assistant.Windows.zip"
     with zipfile.ZipFile(archive,"w",zipfile.ZIP_DEFLATED) as z:
         for path in sorted(bundle.rglob("*")):
             if path.is_file():
