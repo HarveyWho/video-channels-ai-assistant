@@ -1,0 +1,8 @@
+{
+  "ollama_version": "v0.40.18",
+  "ollama_windows_sha256": "ca97292ac1e9acc77fcf473bb2741fa6acd12e3798f261b419680068b7cc4c16",
+  "models": {
+    "2b": "0689d44085e06d165161a8a9a1731344278cfb5aade63a3c3dbdb48ab54b130a",
+    "4b": "d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04"
+  }
+}

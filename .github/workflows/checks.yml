@@ -24,4 +24,4 @@ jobs:
       - name: Run core and queue tests (no API key)
         run: python -m unittest -v tests
       - name: Check syntax
-        run: python -m compileall -q app.py bootstrap.py core.py vision.py selfcheck.py package.py
+        run: python -m compileall -q app.py bootstrap.py core.py vision.py selfcheck.py package.py local_runtime.py build_offline.py publish_release.py

@@ -2,37 +2,35 @@
 
 Windows 视频号直播伴侣开播时，在本机识别评论问题，并在悬浮提词窗口显示答案。支持 **本地 Ollama 模型**、**本地固定问答**，以及手动选择的 **DeepSeek 云端**。本地模式不会自动回退到云端。
 
-当前版本：**v0.2.0-rc1**。这是试播版，生成质量和速度需要在你的实际直播电脑上测试。旧版 v0.1.0-rc1 不支持本地生成。
+当前版本：**v0.3.0-rc1 · 2B + 4B 完整离线包**。已内置 Qwen3.5 两个模型及 Ollama Windows x64 CPU 运行组件，不用另装 Ollama、不用输入模型下载命令、不需要 API Key。首次加载和切换模型仍需等待。
 
-## Windows 下载
+## Windows 完整离线包下载（推荐）
 
-1. 打开 [Releases](https://github.com/HarveyWho/video-channels-ai-assistant/releases)，选择 **v0.2.0-rc1**。
-2. 在 Assets 中下载 **Live.Answer.Assistant.Windows.zip**。构建完成后才会出现这个文件。
-3. 右键“全部解压”，运行文件夹里的 **Live Answer Assistant.exe**，保留旁边的 `_internal` 文件夹。无需安装 Python。
-4. 程序标题应显示 **v0.2.0-rc1**。程序未签名；请核对来源、保留安全软件保护，必要时使用下面的源码方式。
+**[打开 v0.3.0-rc1 下载页](https://github.com/HarveyWho/video-channels-ai-assistant/releases/tag/v0.3.0-rc1)**。只有所有文件上传、校验完成后才会公开该版本。
 
-ZIP 只包含助手、OCR 及其运行环境，**不包含 Ollama 或大语言模型权重**。
+GitHub 单个文件上限为 2 GiB，因此完整包按 1800 MiB 分卷。模型只放在 Releases 下载资产中，不放入 Git 源码历史。**需要下载安装工具 ZIP 和全部离线分卷**，不能只下载第一卷。
 
-## Surface Laptop 3 / 16GB 的本地设置
+1. 在一个空文件夹中保存 `Windows.Offline.Setup.zip` 和全部 `Live.Answer.Assistant.Offline.7z.001`、`.002`、`.003`……文件。以下载页实际列出的最后一卷为准；不要改文件名。
+2. 右键 `Windows.Offline.Setup.zip` → **全部解压**。工具解压到当前文件夹或它的一个子文件夹都可以；不要在 ZIP 预览窗口中直接运行。
+3. 双击解压出来的 **Install Offline.cmd**。脚本先检查每卷的大小与 SHA256，再解压完整软件。工具已自带 7-Zip，无需另外安装解压软件、Python 或 Ollama，也不需要管理员权限。
+4. 解压完成后自动打开 **Live Answer Assistant.exe**。以后直接运行它。保留旁边的 `_internal`、`Local Runtime`、`Models` 和许可证文件夹；不要单独移动 EXE。
+5. 到 **模型与直播资料 → 模型连接 → 本地 Ollama**，选择 `qwen3.5:2b` 或 `qwen3.5:4b`，点击 **测试连接 / 预热本地模型**，然后 **应用设置**。
 
-此配置可以尝试小模型，但 CPU 推理、直播编码与 OCR 会竞争资源。无法保证本地比云端更快，也不能把小模型当成完全准确的答案来源。
+建议准备 **至少 20GB 可用磁盘空间**用于保留下载分卷和解压文件。运行要求 Windows 10 22H2 / Windows 11 x64；Surface Laptop 3 / 16GB 可尝试，实际速度与直播编码负载有关。完整包采用 CPU 运行组件，不包含 NVIDIA CUDA / AMD ROCm GPU 加速库。软件与安装脚本尚未签名，请核对来源。
 
-1. 从 [Ollama 官方 Windows 下载页](https://ollama.com/download/windows)安装最新版 Ollama，并让它保持运行。
-2. 重新打开 PowerShell，执行下面的命令下载模型。模型约数 GB，请预留磁盘空间：
+首次加载模型可能较慢。测试结果显示首字和完整回答耗时；用同一组常见直播问题比较 2B、4B，再选择能接受的质量与等待时间。4B 的参数量更大，不能据此保证每个问题都更准确。
 
-```powershell
-ollama pull qwen3.5:2b
-```
+内置服务按需自动启动，仅绑定本机回环地址的独立端口；使用包内 `Models` 文件夹，不替换电脑中已有的 Ollama 或模型。退出助手时关闭自己启动的服务；切换模型时只保留一个模型在内存中。本地模式关闭 Ollama 云功能，不自动回退到 DeepSeek。
 
-3. 打开助手的 **模型与资料设置 → 模型连接**，选择 **本地 Ollama**，模型填 `qwen3.5:2b`。本地模式不需要 DeepSeek 密钥。
-4. 点击 **测试连接 / 预热本地模型**，首次加载可能较慢。成功后会显示首字和完整回答耗时，再点 **应用设置**。
-5. 先手动输入直播中常见的问题测试，再边试播边测。若速度和答案质量可以接受，再考虑 `qwen3.5:4b`；4B 需要单独执行 `ollama pull qwen3.5:4b`，通常需要更多资源。
+本地生成参考资料最多 3000 字，问题最多 600 字。固定问答可直接显示你确认过的答案。生成模型没有联网检索，资料不足时仍需主播确认。
 
-程序通过 `http://127.0.0.1:11434/api/chat` 连接本机 Ollama，设置 `think: false`、模型保留时间 `10m`、短回答和有限上下文。只使用已下载的本地模型，不使用带 cloud 的模型标签。请求在本地服务内的具体处理由你安装的 Ollama 决定。
+[Ollama Windows 运行组件说明](https://docs.ollama.com/windows) · [Qwen3.5 2B](https://ollama.com/library/qwen3.5:2b) · [Qwen3.5 4B](https://ollama.com/library/qwen3.5:4b)
 
-本地生成参考资料最多 3000 字，问题最多 600 字；过长资料会明确提示精简，不会悄悄截掉。先以 2B 小模型和简短资料实测，避免一边直播一边首次加载大模型。
+## 已有 Ollama 的轻量包（可选）
 
-[Ollama 官方接口说明](https://docs.ollama.com/api/chat) · [Qwen3.5 2B 模型](https://ollama.com/library/qwen3.5:2b)
+`Live.Answer.Assistant.Windows.zip` 只包含助手和 OCR，**不含生成模型与 Ollama**。已经自行安装 Ollama、下载好模型的用户才需要这个 ZIP。解压后运行 EXE，连接本机 `127.0.0.1:11434`。首次使用请选择上面的完整离线包。
+
+源码页的 **Code → Download ZIP** 也不包含模型。
 
 ## 固定问题直接显示确认过的答案
 
@@ -87,8 +85,8 @@ py -3.13 -m venv .venv
 .venv/Scripts/python.exe app.py
 ```
 
-固定演示：`python app.py --demo`，不连接模型、不采集屏幕。Windows 独立包由 GitHub Actions 打包；本地开发打包需安装 `requirements build.txt` 并运行 `python package.py`。
+固定演示：`python app.py --demo`，不连接模型、不采集屏幕。Windows 独立包由 GitHub Actions 打包；本地开发打包需安装 `requirements build.txt` 并运行 `python package.py`；完整离线分卷再运行 `python build_offline.py`，会下载并校验 `bundled_models.json` 固定的模型与运行组件。
 
-每次发布会检查源码和打包后的 OCR、界面构造；这些检查不代表你电脑上的模型速度或真实视频号直播已通过。[查看 Actions](https://github.com/HarveyWho/video-channels-ai-assistant/actions)。
+离线发布会检查源码和打包后的 OCR、界面构造，实际运行两个内置模型生成回答，并测试分卷安装与校验；这些检查不代表你电脑上的模型速度或真实视频号直播已通过。[查看 Actions](https://github.com/HarveyWho/video-channels-ai-assistant/actions)。
 
 项目自行编写的代码采用 [MIT License](LICENSE)。第三方组件保留各自许可证，见 [THIRD PARTY NOTICES.md](THIRD%20PARTY%20NOTICES.md)。与微信、腾讯、视频号、DeepSeek 或 Ollama 均无官方隶属关系。

@@ -1,5 +1,4 @@
-视频号直播答疑助手 v0.2.0-rc1
-
-独立程序直接运行 EXE；源码包需要 Python 3.11–3.13 并运行 Start.bat。
-本地 Ollama 和模型需要单独安装。先阅读 README.md 或 Windows 下载和测试.txt。
-新版本默认读取当前可见问题，重复测试请点“重读当前弹幕”。
+首次使用 Windows：请按 README 或 Windows 下载和测试.txt 下载完整离线分卷。
+内置 Qwen3.5 2B、4B 和本地运行组件，解压后即可选择模型，无需安装 Ollama。
+GitHub 下载页：https://github.com/HarveyWho/video-channels-ai-assistant/releases/tag/v0.3.0-rc1
+不要只下载第一卷。轻量包和源码 ZIP 不包含模型。

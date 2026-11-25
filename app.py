@@ -22,6 +22,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from core import ApiError, Cancelled, DeepSeekClient, OllamaClient, QuestionTracker, local_answer, normalise
 from vision import ScreenReader, overlaps, valid_region
+from local_runtime import LocalRuntime
 
 PAPER = "#F5F1E8"
 INK = "#202B29"
@@ -30,7 +31,7 @@ GREEN = "#245E4B"
 NIGHT = "#192522"
 CREAM = "#F7F1E3"
 FONT = "SimSun" if sys.platform == "win32" else "Songti SC"
-VERSION = "0.2.0-rc1"
+VERSION = "0.3.0-rc1"
 CONFIG = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "Live Answer Assistant" / "settings.json"
 LOG=logging.getLogger("live.answer")
 
@@ -96,6 +97,7 @@ class Assistant:
         self.current = None
         self.rendered_current = None
         self.client = DeepSeekClient()
+        self.local_runtime = LocalRuntime()
         self.tracker = QuestionTracker()
         self.monitor_stop = threading.Event()
         self.capture_blocked = threading.Event()
@@ -269,7 +271,7 @@ class Assistant:
     def selected_client(self, provider=None, model=None, warm=False):
         provider=provider or self.provider
         if provider=="ollama":
-            return OllamaClient(model or self.local_model,first_timeout=60 if warm else 30,total_timeout=90 if warm else 75)
+            return OllamaClient(model or self.local_model,endpoint=self.local_runtime.endpoint(),first_timeout=60 if warm else 30,total_timeout=90 if warm else 75)
         return DeepSeekClient()
 
     def settings(self):
@@ -299,7 +301,9 @@ class Assistant:
         model=ttk.Combobox(model_tab,values=["qwen3.5:2b","qwen3.5:4b","qwen3:1.7b"],font=(FONT,12))
         model.set(self.local_model)
         model.grid(row=2,column=0,sticky="ew",pady=(6,8))
-        ttk.Label(model_tab,text="先安装 Ollama，再在 PowerShell 执行：\nollama pull qwen3.5:2b\n本地模式只连接本机，不自动回退云端。模型需单独下载。",foreground=MUTED,wraplength=620).grid(row=3,column=0,sticky="w",pady=(0,12))
+        help_text=("已内置 Qwen3.5 2B 和 4B，选择后点测试连接即可。\n内置服务会自动启动；切换模型时只保留一个模型在内存中。" if self.local_runtime.bundled else
+            "当前为轻量包：需安装 Ollama 并下载所选模型。\n完整离线包已包含 2B、4B 和本地运行组件，见 GitHub 下载页。")
+        ttk.Label(model_tab,text=help_text+"\n本地模式只连接本机，不自动回退云端。",foreground=MUTED,wraplength=620).grid(row=3,column=0,sticky="w",pady=(0,12))
         ttk.Button(model_tab,text="打开 Ollama Windows 下载页",command=lambda:webbrowser.open("https://ollama.com/download/windows")).grid(row=4,column=0,sticky="w",pady=(0,20))
         ttk.Label(model_tab,text="DeepSeek API Key（只有云端模式需要）").grid(row=5,column=0,sticky="w")
         key=ttk.Entry(model_tab,show="*",font=(FONT,12))
@@ -826,10 +830,15 @@ class Assistant:
         self.monitor_stop.set()
         self.cancel.set()
         self.save_config()
+        self.local_runtime.close()
         self.root.destroy()
 
 
 def main():
+    if "--check-models" in sys.argv:
+        from local_runtime import check_models
+        index=sys.argv.index("--check-models")
+        raise SystemExit(check_models(sys.argv[index+1]))
     if "--self-check" in sys.argv:
         from selfcheck import run
         index=sys.argv.index("--self-check")

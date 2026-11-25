@@ -1,26 +1,14 @@
-视频号直播答疑助手 v0.2.0-rc1 · Windows / Surface Laptop 3
+视频号直播答疑助手 v0.3.0-rc1 完整离线包
 
-下载：https://github.com/HarveyWho/video-channels-ai-assistant/releases
-下载本版本的 Live.Answer.Assistant.Windows.zip，完整解压，运行 Live Answer Assistant.exe。保留 _internal 文件夹。标题应显示 v0.2.0-rc1。
+1. 在 Releases 下载 Windows.Offline.Setup.zip 和全部 Offline.7z.001、002、003……分卷到同一个文件夹。
+2. 全部解压 Setup ZIP，双击 Install Offline.cmd。工具自动检查分卷并解压，随后启动软件。
+3. 以后直接运行解压出的 Live Answer Assistant.exe；旁边的 Models、Local Runtime、_internal 都要保留。
+4. 模型连接选择本地 Ollama，再选 qwen3.5:2b 或 qwen3.5:4b，测试连接 / 预热，再应用设置。
+5. 无需另装 Ollama、Python 或下载模型。本地模式不需要 DeepSeek 密钥。
+6. 下载和解压建议预留至少20GB空间。仅 Windows x64；建议16GB内存或以上。
+7. 打开视频号直播伴侣，选择可见弹幕区域，开始监听。手动输入问题也能测试。
+8. 重复用同题测试时点“重读当前弹幕”；没有问题入队时看状态栏的识别、过滤、重复计数。
+9. 记录2B和4B预热后的首字、完整回答耗时，并检查内容是否可靠。首次切换可能较慢。
 
-本地模型需要另外安装：
-1. 到 https://ollama.com/download/windows 安装并打开 Ollama。
-2. 重新打开 PowerShell，执行：ollama pull qwen3.5:2b
-3. 助手中进入“模型与资料设置”，选择本地 Ollama，模型为 qwen3.5:2b。
-4. 点击“测试连接 / 预热本地模型”，查看首字和完整回答耗时，成功后应用设置。
-5. 本地不需要 API Key，不会自动回退云端。模型不在助手 ZIP 内，需要另行下载数 GB。
-
-先手动提问测试，再框选评论并开始监听。新版默认处理当前可见问题。
-重复同一个问题测试时，点“重读当前弹幕”。状态栏会显示过滤、重复和入队数量。
-当前答案会保留，后面生成的答案需要点击“下一条”查看。
-
-固定问答：在直播资料页按下面格式填你确认过的内容，严格匹配后会直接显示，不调用模型：
-问：请问怎么报名？
-答：在这里填写真实报名流程。
-
-Surface Laptop 3 / 16GB 可以尝试小模型，但边直播边生成未必比云端快。先测 2B，不保证秒回或完全准确。
-若选择 DeepSeek 云端，需填写自己的 API Key；本地失败不会悄悄转发云端。
-
-没有回答时请看：是否入队、是否显示等待首字、是否已暂停；先检查模型测试是否成功。诊断记录在 %LOCALAPPDATA%/Live Answer Assistant/diagnostics.log。
-请先内部试播，检查提词窗口未被直播采集。程序尚未签名，保留安全软件保护。
-完整说明和问题反馈见仓库 README 和 Issues；不要上传密钥或私人截图。
+轻量 ZIP 和 Code → Download ZIP 不包含模型，首次使用请下载完整离线包。
+本地回答只在本机生成；主播仍需核对事实，程序没有联网搜索。

@@ -10,6 +10,73 @@ from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from core import ApiError, Cancelled, DeepSeekClient, OllamaClient, QuestionTracker, build_payload, clean_question, is_question, sse_events, local_answer
 from vision import group_lines, overlaps, valid_region
+from local_runtime import LocalRuntime, MODELS
+from build_offline import model_files, sha256
+
+
+class PortableTests(unittest.TestCase):
+    def test_external_ollama_and_incomplete_bundle(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runtime = LocalRuntime(folder)
+            self.assertEqual(runtime.endpoint(), "http://127.0.0.1:11434/api/chat")
+            (Path(folder)/"Models").mkdir()
+            with self.assertRaisesRegex(ApiError, "组件缺失"):
+                runtime.endpoint()
+            runtime.executable.parent.mkdir()
+            runtime.executable.touch()
+            with self.assertRaisesRegex(ApiError, "模型不完整"):
+                runtime.endpoint()
+
+    def test_runtime_uses_own_models_and_no_cloud(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict('os.environ', {"DEEPSEEK_API_KEY":"private", "OLLAMA_HOST":"remote.invalid"}):
+            runtime = LocalRuntime(folder)
+            runtime.host = "127.0.0.1:12345"
+            env = runtime.environment()
+            self.assertEqual(env["OLLAMA_HOST"], runtime.host)
+            self.assertEqual(env["OLLAMA_MODELS"], str(Path(folder)/"Models"))
+            self.assertEqual(env["OLLAMA_NO_CLOUD"], "1")
+            self.assertEqual(env["OLLAMA_MAX_LOADED_MODELS"], "1")
+            self.assertNotIn("DEEPSEEK_API_KEY", env)
+
+    def test_manifest_blobs_are_safe_and_deduplicated(self):
+        descriptor = {"digest":"sha256:"+"a"*64, "size":10}
+        self.assertEqual(len(model_files({"config":descriptor,"layers":[descriptor]})),1)
+        for bad in ["../outside", "sha256:"+"A"*64]:
+            with self.assertRaises(ValueError):
+                model_files({"config":{"digest":bad,"size":10},"layers":[]})
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"blob"
+            path.write_bytes(b'abc')
+            self.assertEqual(sha256(path),'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
+
+    @unittest.skipUnless(__import__('sys').platform == 'win32', 'Windows installer integration')
+    def test_offline_installer_checks_parts_and_extracts(self):
+        import os, shutil, subprocess
+        seven=Path(os.environ['ProgramFiles'])/'7-Zip/7z.exe'
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            setup=root/'Setup'
+            setup.mkdir()
+            for name in ['7z.exe','7z.dll']:
+                shutil.copy2(seven.parent/name,setup/name)
+            shutil.copy2(Path(__file__).parent/'Install Offline.ps1',setup)
+            fixture=root/'Fixture'
+            fixture.mkdir()
+            (fixture/'Live Answer Assistant.exe').write_bytes(b'fixture')
+            archive=root/'Live.Answer.Assistant.Offline.7z.001'
+            subprocess.run([str(seven),'a','-t7z','-mx=0',str(archive),'Live Answer Assistant.exe'],cwd=fixture,check=True,stdout=subprocess.DEVNULL)
+            metadata={'version':'test','unpacked_bytes':7,'parts':[{'name':archive.name,'size':archive.stat().st_size,'sha256':sha256(archive)}]}
+            (setup/'Offline Package.json').write_text(json.dumps(metadata))
+            env=os.environ.copy();env['LIVE_ASSISTANT_SETUP_TEST']='1'
+            def install():
+                return subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(setup/'Install Offline.ps1')],env=env,capture_output=True).returncode
+            original=archive.read_bytes()
+            archive.write_bytes(original[:-1])
+            self.assertEqual(install(),1)
+            archive.write_bytes(original)
+            self.assertEqual(install(),0)
+            self.assertEqual((root/'Live Answer Assistant vtest/Live Answer Assistant.exe').read_bytes(),b'fixture')
+            self.assertEqual(install(),1)
 
 
 class CoreTests(unittest.TestCase):

@@ -18,3 +18,9 @@ Upstream projects:
 - Pillow: https://python-pillow.org/
 - Shapely: https://github.com/shapely/shapely
 - PyInstaller build tool and distribution exception: https://pyinstaller.org/en/stable/license.html
+
+## Offline model distribution
+
+The full offline release also redistributes Ollama (MIT) and Qwen3.5 2B / 4B weights (Apache-2.0). The upstream model manifest license layers are retained under Third Party Licenses, and Ollama CPU library notices remain alongside the runtime. Pinned upstream digests are in Bundled Models.json.
+
+The small offline extraction tool ZIP includes 7-Zip and its License.txt (LGPL/BSD/unRAR terms as supplied by the Windows runner installation). Retain 7-Zip license text when redistributing. Source: https://www.7-zip.org/
