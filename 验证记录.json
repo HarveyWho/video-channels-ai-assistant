@@ -2,7 +2,7 @@
   "date": "2026-11-25",
   "version": "0.2.0-rc1",
   "release_status": "source ready; Windows build pending",
-  "core_tests": 24,
+  "core_tests": 26,
   "core_test_result": "passed locally",
   "local_self_check": {
     "status": "passed",
@@ -56,12 +56,12 @@
     "assets/Dark Comments.png": "c7c3776dbc452977d065bd6b2045910351379eb11d83fcad12dfcd72b7181291",
     "assets/Light Comments.png": "bbb278118c2fdfed21b25f78693efd125ace6da546e0207a511fed3614f4c64e",
     "bootstrap.py": "786b218f4a337d99114c143de01f9cf140188eef11853a09ea88e15decb962ea",
-    "core.py": "cdcdf872811ae19b193789c1e7e3a37cc3e96986a671ab3a9dcd4b3306ee01bb",
+    "core.py": "388bb71c2487191d83168ed3981f363c47a81df4ffc3f6e2b6ffc5914572eafa",
     "package.py": "e7dc86a7bd28bea0e1e377457d59a199ce6568867507dccb3a130beeac450bb8",
     "requirements build.txt": "62d2297563d627ecc05af21002ca3659ca1714957a089e0d5a7e40ebdd2e5ed1",
     "requirements.txt": "5771c97133428a2f29c72b19ae9b3ea0fcf8ff2200f38cb46e4436271b410211",
     "selfcheck.py": "87d87637ec623b2a67e885849aa5962fca74649adc3c7073821e741980327e4a",
-    "tests.py": "2088b3115b020588533976fc6fc68ee5808c1df9ad64251c5bc6b0677a937e3c",
+    "tests.py": "d1f5cb4c572d939b6ea8fd77e729c2885df16fb7c8764cd01ec30e389506a142",
     "vision.py": "48e545cb0f5726f39003ed83dd57360bd49d7f62d58442b1c5c8f613b25093de",
     "使用说明.md": "a5f8513cbd8210e13f26bd13748a47c76e9d711d50c52eb723adcadc4d47932a",
     "先读我.txt": "f2f04bc98e77ec6c23107b8c4b78492f4334da6f787dbf860263e3785e120905"

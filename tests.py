@@ -84,6 +84,20 @@ class StreamingTests(unittest.TestCase):
                 body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
                 cls.received.append(body)
                 cls.last_headers=dict(self.headers)
+                if self.path=="/chunked-heartbeat":
+                    self.protocol_version='HTTP/1.1'
+                    self.send_response(200)
+                    self.send_header('Transfer-Encoding','chunked')
+                    self.end_headers()
+                    for i in range(50):
+                        chunk=b': keep-alive\n\n'
+                        try:
+                            self.wfile.write(('%x\r\n'%len(chunk)).encode()+chunk+b'\r\n')
+                            self.wfile.flush()
+                        except OSError:
+                            return
+                        time.sleep(.03)
+                    return
                 if self.path=="/ollama404":
                     self.send_response(404)
                     self.end_headers()
@@ -189,6 +203,22 @@ class StreamingTests(unittest.TestCase):
         client=DeepSeekClient('http://127.0.0.1:%s/heartbeat'%self.server.server_port,first_timeout=2,total_timeout=.15)
         with self.assertRaisesRegex(ApiError,'超过等待时间'):
             list(client.stream('test-key','问题','','',threading.Event()))
+
+    def test_chunked_timeout_preserves_the_deadline_error(self):
+        client=DeepSeekClient('http://127.0.0.1:%s/chunked-heartbeat'%self.server.server_port,first_timeout=.2,total_timeout=2)
+        with self.assertRaisesRegex(ApiError,'首字'):
+            list(client.stream('test-key','问题','','',threading.Event()))
+
+    def test_chunked_cancel_is_reported_as_cancelled(self):
+        client=DeepSeekClient('http://127.0.0.1:%s/chunked-heartbeat'%self.server.server_port,first_timeout=2,total_timeout=3)
+        cancel=threading.Event()
+        timer=threading.Timer(.15,cancel.set)
+        timer.start()
+        try:
+            with self.assertRaises(Cancelled):
+                list(client.stream('test-key','问题','','',cancel))
+        finally:
+            timer.cancel()
 
     def test_local_stream_has_no_cloud_key_and_disables_thinking(self):
         client=OllamaClient('qwen3.5:2b','http://127.0.0.1:%s/ollama'%self.server.server_port)

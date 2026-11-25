@@ -1,5 +1,6 @@
 """Question filtering and the DeepSeek streaming client (no GUI dependencies)."""
 import json
+import http.client
 import re
 import socket
 import threading
@@ -53,6 +54,8 @@ class StreamGuard:
         self.has_text=False
         self.reason=None
         self.response=None
+        self.connection=None
+        self.socket=None
         self.stopped=threading.Event()
 
     def __enter__(self):
@@ -68,7 +71,7 @@ class StreamGuard:
 
     def abort(self):
         # urllib's HTTPResponse wraps SocketIO; shutdown wakes a blocked readline.
-        sock=getattr(getattr(getattr(self.response,"fp",None),"raw",None),"_sock",None)
+        sock=self.socket or getattr(self.connection,"sock",None)
         if sock is not None:
             try:
                 sock.shutdown(socket.SHUT_RDWR)
@@ -99,6 +102,10 @@ class StreamGuard:
     def __exit__(self,*args):
         self.stopped.set()
         self.thread.join(timeout=0.2)
+        if self.socket is not None:
+            self.socket.close()
+        if self.connection is not None:
+            self.connection.close()
 
 
 def normalise(text):
@@ -198,10 +205,46 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def guarded_opener(guard, local=False):
+    # urllib closes its socket object after headers. Retain ownership so shutdown
+    # can cancel a blocked Windows read, then close it when the response finishes.
+    def connection_type(base):
+        class OwnedConnection(base):
+            def __init__(self,*args,**kwargs):
+                super().__init__(*args,**kwargs)
+                guard.connection=self
+
+            def close(self):
+                if self.sock is not None:
+                    guard.socket=self.sock
+                    self.sock=None
+                super().close()
+
+            def getresponse(self):
+                response=super().getresponse()
+                if self.sock is not None:
+                    guard.socket=self.sock
+                    self.sock=None
+                return response
+        return OwnedConnection
+
+    class HTTPHandler(urllib.request.HTTPHandler):
+        def http_open(self,request):
+            return self.do_open(connection_type(http.client.HTTPConnection),request)
+
+    class HTTPSHandler(urllib.request.HTTPSHandler):
+        def https_open(self,request):
+            return self.do_open(connection_type(http.client.HTTPSConnection),request,context=self._context)
+
+    handlers=[HTTPHandler(),HTTPSHandler(),NoRedirect()]
+    if local:
+        handlers.append(urllib.request.ProxyHandler({}))
+    return urllib.request.build_opener(*handlers)
+
+
 class DeepSeekClient:
     def __init__(self, endpoint=ENDPOINT, first_timeout=20, total_timeout=45):
         self.endpoint = endpoint
-        self.opener = urllib.request.build_opener(NoRedirect())
         self.first_timeout=first_timeout
         self.total_timeout=total_timeout
 
@@ -220,7 +263,7 @@ class DeepSeekClient:
         try:
             if cancel.is_set():
                 raise Cancelled()
-            with guard, self.opener.open(request, timeout=self.first_timeout) as response:
+            with guard, guarded_opener(guard).open(request, timeout=self.first_timeout) as response:
                 guard.bind(response)
                 for data in sse_events(response, cancel):
                     guard.check()
@@ -261,7 +304,7 @@ class DeepSeekClient:
                 503: "DeepSeek 服务繁忙，请稍后重试。",
             }
             raise ApiError(messages.get(exc.code, "DeepSeek 连接失败（HTTP %s），请稍后重试。" % exc.code)) from None
-        except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError, OSError):
+        except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError, OSError, http.client.HTTPException):
             guard.check()
             if cancel.is_set():
                 raise Cancelled() from None
@@ -276,7 +319,6 @@ class OllamaClient:
         self.endpoint=endpoint
         self.first_timeout=first_timeout
         self.total_timeout=total_timeout
-        self.opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
 
     def stream(self,key,question,topic,context,cancel):
         if len(context)>3000:
@@ -290,7 +332,7 @@ class OllamaClient:
         finished=False
         guard=StreamGuard(cancel,self.first_timeout,self.total_timeout)
         try:
-            with guard,self.opener.open(request,timeout=self.first_timeout) as response:
+            with guard,guarded_opener(guard,local=True).open(request,timeout=self.first_timeout) as response:
                 guard.bind(response)
                 while True:
                     guard.check()
@@ -324,6 +366,6 @@ class OllamaClient:
             if exc.code==404:
                 raise ApiError("本地模型尚未安装，请先执行 ollama pull "+self.model) from None
             raise ApiError("Ollama 请求失败（HTTP %s），请检查服务和模型。"%exc.code) from None
-        except (urllib.error.URLError,socket.timeout,TimeoutError,ConnectionError,OSError):
+        except (urllib.error.URLError,socket.timeout,TimeoutError,ConnectionError,OSError,http.client.HTTPException):
             guard.check()
             raise ApiError("无法连接本机 Ollama，或模型等待超时。请打开 Ollama，并先点击测试并预热。") from None
