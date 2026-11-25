@@ -32,7 +32,8 @@ def main():
            "--title", tag+" · 内置 Qwen3.5 2B + 4B 离线包", "--notes-file", "Release Notes.txt")
     files = sorted(path for path in Path("release").iterdir() if path.is_file())
     gh("release", "upload", tag, *[str(p) for p in files], "--repo", repo, "--clobber")
-    release = json.loads(gh("api", "repos/"+repo+"/releases/tags/"+tag))
+    # A draft has no published tag ref yet; the by-tag REST endpoint returns 404.
+    release = next(r for r in json.loads(gh("api", "repos/"+repo+"/releases?per_page=100")) if r["tag_name"] == tag)
     assets = {asset["name"]: asset for asset in release["assets"]}
     for path in files:
         asset = assets[path.name]
