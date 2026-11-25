@@ -32,7 +32,7 @@ jobs:
           tag = 'v0.3.0-rc1'
           source = '8c7ebc126bae7361bf4ea491b43ecd962ef80342'
           changed = set(subprocess.check_output(['git','diff','--name-only',source,'HEAD'], encoding='utf-8').splitlines())
-          assert changed <= {'publish_release.py','.github/workflows/finalize-offline.yml'}, changed
+          assert changed <= {'publish_release.py','tests.py','.github/workflows/finalize-offline.yml'}, changed
           jobs = json.loads(gh('api','repos/'+repo+'/actions/runs/45631894345/jobs'))['jobs']
           steps = {s['name']: s['conclusion'] for j in jobs for s in j['steps']}
           for name in ['Test core behavior','Check OCR and GUI construction from source','Check the packaged EXE',
@@ -44,20 +44,28 @@ jobs:
           assets = {a['name']: a for a in release['assets']}
           with tempfile.TemporaryDirectory() as folder:
               gh('release','download',tag,'--repo',repo,'--dir',folder,'--pattern','SHA256.txt',
-                 '--pattern','Bundled Model Check.json','--pattern','Offline Package.json')
+                 '--pattern','Bundled.Model.Check.json','--pattern','Offline.Package.json')
               root = pathlib.Path(folder)
               assert assets['SHA256.txt']['digest'] == 'sha256:'+sha256(root/'SHA256.txt')
+              normalized = []
               for line in (root/'SHA256.txt').read_text().splitlines():
                   digest, name = line.split('  ',1)
+                  name = name.replace(' ', '.')
                   assert assets[name]['state'] == 'uploaded' and assets[name]['digest'] == 'sha256:'+digest, name
-              models = json.loads((root/'Bundled Model Check.json').read_text(encoding='utf-8'))
+                  normalized.append(digest+'  '+name+'\n')
+              models = json.loads((root/'Bundled.Model.Check.json').read_text(encoding='utf-8'))
               assert models['status'] == 'passed'
               assert {m['model'] for m in models['models']} == {'qwen3.5:2b','qwen3.5:4b'}
-              package = json.loads((root/'Offline Package.json').read_text())
+              package = json.loads((root/'Offline.Package.json').read_text())
               assert package['version'] == '0.3.0-rc1'
               for part in package['parts']:
                   assert assets[part['name']]['size'] == part['size'] < 2*1024**3
                   assert assets[part['name']]['digest'] == 'sha256:'+part['sha256']
               print(json.dumps({'models':models,'package':package}))
+              (root/'SHA256.txt').write_text(''.join(normalized), encoding='utf-8')
+              gh('release','upload',tag,str(root/'SHA256.txt'),'--repo',repo,'--clobber')
+              refreshed = next(r for r in json.loads(gh('api','repos/'+repo+'/releases?per_page=100')) if r['tag_name'] == tag)
+              checksum = next(a for a in refreshed['assets'] if a['name'] == 'SHA256.txt')
+              assert checksum['digest'] == 'sha256:'+sha256(root/'SHA256.txt')
           gh('release','edit',tag,'--repo',repo,'--draft=false','--prerelease')
           print('Verified and published '+release['html_url'])
