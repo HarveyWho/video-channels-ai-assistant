@@ -11,6 +11,19 @@ def gh(*args):
     return subprocess.check_output(["gh", *args], encoding="utf-8").strip()
 
 
+def prepare_release_files(output):
+    output = Path(output)
+    for path in output.iterdir():
+        target = path.with_name(path.name.replace(" ", "."))
+        if path.is_file() and path != target:
+            if target.exists():
+                raise RuntimeError("Release asset name collision: " + target.name)
+            path.rename(target)
+    files = sorted(p for p in output.iterdir() if p.is_file() and p.name != "SHA256.txt")
+    (output / "SHA256.txt").write_text("".join(sha256(p)+"  "+p.name+"\n" for p in files), encoding="utf-8")
+    return sorted(files + [output / "SHA256.txt"])
+
+
 def main():
     repo, commit = os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_SHA"]
     if os.environ.get("GITHUB_REF") != "refs/heads/main":
@@ -30,7 +43,7 @@ def main():
     else:
         gh("release", "create", tag, "--repo", repo, "--target", commit, "--draft", "--prerelease",
            "--title", tag+" · 内置 Qwen3.5 2B + 4B 离线包", "--notes-file", "Release Notes.txt")
-    files = sorted(path for path in Path("release").iterdir() if path.is_file())
+    files = prepare_release_files("release")
     gh("release", "upload", tag, *[str(p) for p in files], "--repo", repo, "--clobber")
     # A draft has no published tag ref yet; the by-tag REST endpoint returns 404.
     release = next(r for r in json.loads(gh("api", "repos/"+repo+"/releases?per_page=100")) if r["tag_name"] == tag)

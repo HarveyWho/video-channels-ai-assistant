@@ -15,6 +15,16 @@ from build_offline import model_files, sha256
 
 
 class PortableTests(unittest.TestCase):
+    def test_release_checksums_use_actual_github_asset_names(self):
+        from publish_release import prepare_release_files
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            (root/'Bundled Model Check.json').write_text('{}')
+            (root/'SHA256.txt').write_text('old manifest')
+            files=prepare_release_files(root)
+            self.assertEqual([p.name for p in files],['Bundled.Model.Check.json','SHA256.txt'])
+            self.assertEqual((root/'SHA256.txt').read_text(),sha256(root/'Bundled.Model.Check.json')+'  Bundled.Model.Check.json\n')
+
     def test_external_ollama_and_incomplete_bundle(self):
         with tempfile.TemporaryDirectory() as folder:
             runtime = LocalRuntime(folder)
