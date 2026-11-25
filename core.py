@@ -3,12 +3,14 @@ import json
 import http.client
 import re
 import socket
+import ssl
 import threading
 import time
 import unicodedata
 import urllib.error
 import urllib.request
 from collections import OrderedDict
+from functools import lru_cache
 
 ENDPOINT = "https://api.deepseek.com/chat/completions"
 MODEL = "deepseek-flash"
@@ -205,6 +207,11 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+@lru_cache(maxsize=1)
+def verified_tls_context():
+    return ssl.create_default_context()
+
+
 def guarded_opener(guard, local=False):
     # urllib closes its socket object after headers. Retain ownership so shutdown
     # can cancel a blocked Windows read, then close it when the response finishes.
@@ -233,8 +240,12 @@ def guarded_opener(guard, local=False):
             return self.do_open(connection_type(http.client.HTTPConnection),request)
 
     class HTTPSHandler(urllib.request.HTTPSHandler):
+        def __init__(self):
+            # Local HTTP requests do not need the Windows certificate store.
+            urllib.request.AbstractHTTPHandler.__init__(self)
+
         def https_open(self,request):
-            return self.do_open(connection_type(http.client.HTTPSConnection),request,context=self._context)
+            return self.do_open(connection_type(http.client.HTTPSConnection),request,context=verified_tls_context())
 
     handlers=[HTTPHandler(),HTTPSHandler(),NoRedirect()]
     if local:

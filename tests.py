@@ -235,6 +235,11 @@ class StreamingTests(unittest.TestCase):
         with self.assertRaisesRegex(ApiError,'ollama pull'):
             list(client.stream('','问题','','',threading.Event()))
 
+    def test_local_http_does_not_initialise_cloud_tls(self):
+        client=OllamaClient('qwen3.5:2b','http://127.0.0.1:%s/ollama'%self.server.server_port)
+        with patch('core.ssl.create_default_context',side_effect=AssertionError('local HTTP must not load TLS certificates')):
+            self.assertEqual(''.join(client.stream('','问题','','',threading.Event())),"本地回答。")
+
 
 class QueueTests(unittest.TestCase):
     def make_app(self):
