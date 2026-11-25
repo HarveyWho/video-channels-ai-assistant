@@ -8,7 +8,11 @@ try {
     foreach ($part in $metadata.parts) {
         $path = Join-Path $partsFolder $part.name
         if (!(Test-Path $path)) { throw ('Missing part: ' + $part.name) }
-        if ((Get-Item $path).Length -ne $part.size -or (Get-FileHash $path -Algorithm SHA256).Hash -ne $part.sha256) {
+        $hasher = [System.Security.Cryptography.SHA256]::Create()
+        $stream = [System.IO.File]::OpenRead($path)
+        try { $digest = [System.BitConverter]::ToString($hasher.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+        finally { $stream.Dispose(); $hasher.Dispose() }
+        if ((Get-Item $path).Length -ne $part.size -or $digest -ne $part.sha256) {
             throw ('Incomplete or damaged download: ' + $part.name)
         }
     }

@@ -22,7 +22,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from core import ApiError, Cancelled, DeepSeekClient, OllamaClient, QuestionTracker, local_answer, normalise
 from vision import ScreenReader, overlaps, valid_region
-from local_runtime import LocalRuntime
+from local_runtime import LocalRuntime, MODELS
 
 PAPER = "#F5F1E8"
 INK = "#202B29"
@@ -134,6 +134,8 @@ class Assistant:
             except OSError:
                 pass
         self.load_config()
+        if self.local_runtime.bundled and self.local_model not in MODELS:
+            self.local_model = MODELS[0]
         self.build()
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.root.after(80, self.poll)
@@ -298,13 +300,15 @@ class Assistant:
         provider.set("本地 Ollama" if self.provider=="ollama" else "DeepSeek 云端")
         provider.grid(row=0,column=0,sticky="ew",pady=(0,16))
         ttk.Label(model_tab,text="本地模型名称").grid(row=1,column=0,sticky="w")
-        model=ttk.Combobox(model_tab,values=["qwen3.5:2b","qwen3.5:4b","qwen3:1.7b"],font=(FONT,12))
+        model=ttk.Combobox(model_tab,values=MODELS if self.local_runtime.bundled else [*MODELS,"qwen3:1.7b"],
+            state="readonly" if self.local_runtime.bundled else "normal",font=(FONT,12))
         model.set(self.local_model)
         model.grid(row=2,column=0,sticky="ew",pady=(6,8))
         help_text=("已内置 Qwen3.5 2B 和 4B，选择后点测试连接即可。\n内置服务会自动启动；切换模型时只保留一个模型在内存中。" if self.local_runtime.bundled else
             "当前为轻量包：需安装 Ollama 并下载所选模型。\n完整离线包已包含 2B、4B 和本地运行组件，见 GitHub 下载页。")
         ttk.Label(model_tab,text=help_text+"\n本地模式只连接本机，不自动回退云端。",foreground=MUTED,wraplength=620).grid(row=3,column=0,sticky="w",pady=(0,12))
-        ttk.Button(model_tab,text="打开 Ollama Windows 下载页",command=lambda:webbrowser.open("https://ollama.com/download/windows")).grid(row=4,column=0,sticky="w",pady=(0,20))
+        ttk.Button(model_tab,text="打开离线包使用说明" if self.local_runtime.bundled else "打开 Ollama Windows 下载页",
+            command=lambda:webbrowser.open("https://github.com/HarveyWho/video-channels-ai-assistant#readme" if self.local_runtime.bundled else "https://ollama.com/download/windows")).grid(row=4,column=0,sticky="w",pady=(0,20))
         ttk.Label(model_tab,text="DeepSeek API Key（只有云端模式需要）").grid(row=5,column=0,sticky="w")
         key=ttk.Entry(model_tab,show="*",font=(FONT,12))
         key.insert(0,self.key)
