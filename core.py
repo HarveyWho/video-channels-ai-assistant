@@ -214,17 +214,17 @@ def guarded_opener(guard, local=False):
                 super().__init__(*args,**kwargs)
                 guard.connection=self
 
-            def close(self):
-                if self.sock is not None:
-                    guard.socket=self.sock
-                    self.sock=None
-                super().close()
-
             def getresponse(self):
-                response=super().getresponse()
-                if self.sock is not None:
-                    guard.socket=self.sock
-                    self.sock=None
+                # One response per connection: avoid HTTPConnection's automatic
+                # socket close for HTTP/1.0 as well as urllib's post-header close.
+                response=self.response_class(self.sock,method=self._method)
+                guard.socket=self.sock
+                self.sock=None
+                try:
+                    response.begin()
+                except Exception:
+                    response.close()
+                    raise
                 return response
         return OwnedConnection
 
