@@ -1,13 +1,14 @@
 import io
 import json
 import threading
+import time
 import queue
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from core import ApiError, Cancelled, DeepSeekClient, QuestionTracker, build_payload, clean_question, is_question, sse_events
+from core import ApiError, Cancelled, DeepSeekClient, OllamaClient, QuestionTracker, build_payload, clean_question, is_question, sse_events, local_answer
 from vision import group_lines, overlaps, valid_region
 
 
@@ -27,6 +28,13 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(tracker.ingest(["什么时候开课？","学费是多少？"]),["学费是多少?"])
         tracker.ingest(["考试怎样报名？"])
         self.assertEqual(len(tracker.seen),2)
+        self.assertEqual(tracker.stats['new'],1)
+
+    def test_local_presets_do_not_guess_similar_questions(self):
+        context="问：1.5小时够吗？\n答：请按 1.5 小时的计划。\n问：怎么报名？\n答：请联系老师确认。"
+        self.assertEqual(local_answer("小明：怎么报名?",context),"请联系老师确认。")
+        self.assertIsNone(local_answer("15小时够吗？",context))
+        self.assertIsNone(local_answer("怎么报名？",context+"\n问：怎么报名？\n答：另一个答案。"))
 
     def test_short_questions_and_numeric_details_survive(self):
         tracker=QuestionTracker()
@@ -75,6 +83,11 @@ class StreamingTests(unittest.TestCase):
             def do_POST(self):
                 body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
                 cls.received.append(body)
+                cls.last_headers=dict(self.headers)
+                if self.path=="/ollama404":
+                    self.send_response(404)
+                    self.end_headers()
+                    return
                 if self.path=="/401":
                     self.send_response(401)
                     self.end_headers()
@@ -88,6 +101,24 @@ class StreamingTests(unittest.TestCase):
                 self.send_response(200)
                 self.send_header('Content-Type','text/event-stream')
                 self.end_headers()
+                if self.path=="/stall":
+                    time.sleep(1)
+                    return
+                if self.path=="/heartbeat":
+                    for i in range(50):
+                        obj={"choices":[{"delta":{"content":"开始" if i==0 else ""},"finish_reason":None}]}
+                        try:
+                            self.wfile.write(('data: '+json.dumps(obj)+'\n\n').encode())
+                            self.wfile.flush()
+                        except OSError:
+                            return
+                        time.sleep(.03)
+                    return
+                if self.path=="/ollama":
+                    for text,done in [("本地回答。",False),("",True)]:
+                        self.wfile.write((json.dumps({"message":{"content":text},"done":done,"done_reason":"stop"})+'\n').encode())
+                        self.wfile.flush()
+                    return
                 if self.path=="/bad":
                     self.wfile.write(b'data: INVALID\n\n')
                     return
@@ -134,6 +165,46 @@ class StreamingTests(unittest.TestCase):
             with self.subTest(path=path),self.assertRaises(ApiError):
                 self.call(path)
 
+    def test_first_token_timeout_interrupts_a_blocked_read(self):
+        client=DeepSeekClient('http://127.0.0.1:%s/stall'%self.server.server_port,first_timeout=.15,total_timeout=2)
+        started=time.monotonic()
+        with self.assertRaises(ApiError):
+            list(client.stream('test-key','问题','','',threading.Event()))
+        self.assertLess(time.monotonic()-started,.8)
+
+    def test_cancel_interrupts_a_blocked_read(self):
+        client=DeepSeekClient('http://127.0.0.1:%s/stall'%self.server.server_port,first_timeout=2,total_timeout=3)
+        cancel=threading.Event()
+        timer=threading.Timer(.15,cancel.set)
+        timer.start()
+        started=time.monotonic()
+        try:
+            with self.assertRaises(Cancelled):
+                list(client.stream('test-key','问题','','',cancel))
+        finally:
+            timer.cancel()
+        self.assertLess(time.monotonic()-started,.8)
+
+    def test_total_timeout_stops_a_stream_that_keeps_sending_heartbeats(self):
+        client=DeepSeekClient('http://127.0.0.1:%s/heartbeat'%self.server.server_port,first_timeout=2,total_timeout=.15)
+        with self.assertRaisesRegex(ApiError,'超过等待时间'):
+            list(client.stream('test-key','问题','','',threading.Event()))
+
+    def test_local_stream_has_no_cloud_key_and_disables_thinking(self):
+        client=OllamaClient('qwen3.5:2b','http://127.0.0.1:%s/ollama'%self.server.server_port)
+        self.assertEqual(''.join(client.stream('never-send-this-cloud-key','问题','','',threading.Event())),"本地回答。")
+        self.assertNotIn('Authorization',self.last_headers)
+        self.assertFalse(self.received[-1]['think'])
+        self.assertEqual(self.received[-1]['keep_alive'],'10m')
+        self.assertEqual(self.received[-1]['model'],'qwen3.5:2b')
+
+    def test_missing_local_model_and_cloud_tags_are_rejected(self):
+        with self.assertRaises(ApiError):
+            OllamaClient('qwen3.5:cloud')
+        client=OllamaClient('qwen3.5:2b','http://127.0.0.1:%s/ollama404'%self.server.server_port)
+        with self.assertRaisesRegex(ApiError,'ollama pull'):
+            list(client.stream('','问题','','',threading.Event()))
+
 
 class QueueTests(unittest.TestCase):
     def make_app(self):
@@ -141,9 +212,75 @@ class QueueTests(unittest.TestCase):
         obj=Assistant.__new__(Assistant)
         obj.records=[]
         obj.current=None
+        obj.provider='ollama'
+        obj.local_model='qwen3.5:2b'
+        obj.process_existing=True
+        obj.force_current=False
+        obj.refresh_progress=lambda:None
         obj.status=lambda *args:None
         obj.refresh=lambda:None
         return obj
+
+    def test_visible_startup_questions_are_queued_and_duplicate_reason_is_visible(self):
+        obj=self.make_app()
+        obj.tracker=QuestionTracker()
+        obj.only_questions=True
+        messages=[]
+        obj.status=lambda text,*args:messages.append(text)
+        obj.handle_ocr(["小鱼：请问怎么报名？"],first=True)
+        self.assertEqual(len(obj.records),1)
+        obj.handle_ocr(["小鱼：请问怎么报名？"])
+        self.assertEqual(len(obj.records),1)
+        self.assertIn('重复 1 条',messages[-1])
+        self.assertIn('重读当前弹幕',messages[-1])
+
+    def test_local_preset_answers_without_a_key_or_model_request(self):
+        obj=self.make_app()
+        obj.append_question('请问怎么报名？','弹幕')
+        obj.context='问：请问怎么报名？\n答：请联系老师确认。'
+        obj.generating=True
+        obj.active=None
+        obj.test_busy=False
+        obj.demo=False
+        obj.next_request_at=0
+        obj.selected_client=lambda *args: self.fail('A fixed answer must not call a model')
+        obj.dispatch()
+        self.assertEqual(obj.records[0].text,'请联系老师确认。')
+        self.assertEqual(obj.records[0].state,'已完成')
+        self.assertEqual(obj.records[0].engine,'本地固定问答')
+        self.assertIsNone(obj.active)
+
+    def test_selected_pending_question_is_prioritised(self):
+        obj=self.make_app()
+        obj.append_question('问题一？','弹幕')
+        obj.append_question('问题二？','手动')
+        obj.current=1
+        obj.context='问：问题一？\n答：第一条。\n问：问题二？\n答：第二条。'
+        obj.generating=True
+        obj.active=None
+        obj.test_busy=False
+        obj.demo=False
+        obj.next_request_at=0
+        obj.dispatch()
+        self.assertEqual(obj.records[1].text,'第二条。')
+        self.assertEqual(obj.records[0].state,'待生成')
+
+    def test_gui_polling_error_does_not_silently_stop_the_timer(self):
+        obj=self.make_app()
+        class Root:
+            def after(self,*args):
+                self.scheduled=args
+        obj.root=Root()
+        obj.monitor_stop=threading.Event()
+        obj.cancel=threading.Event()
+        def fail():raise ValueError('synthetic failure')
+        obj.poll_once=fail
+        obj.generating=True
+        with patch('app.LOG'):
+            obj.poll()
+        self.assertFalse(obj.generating)
+        self.assertTrue(obj.cancel.is_set())
+        self.assertEqual(obj.root.scheduled[0],100)
 
     def test_reading_answer_stays_pinned_and_backlog_is_bounded(self):
         obj=self.make_app()

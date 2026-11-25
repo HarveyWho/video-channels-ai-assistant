@@ -1,95 +1,94 @@
 # 视频号直播答疑助手
 
-Windows 视频号直播伴侣开播时，框选评论区域，助手在本机识别新问题，交给 DeepSeek 生成答案，并在悬浮大字提词窗口显示。主播读完后切换下一条，后续回答不会自动顶走当前内容。
+Windows 视频号直播伴侣开播时，在本机识别评论问题，并在悬浮提词窗口显示答案。支持 **本地 Ollama 模型**、**本地固定问答**，以及手动选择的 **DeepSeek 云端**。本地模式不会自动回退到云端。
 
-**当前为试播测试版。正式使用前，请先用你的 Windows 电脑、视频号直播伴侣和 DeepSeek API Key 完成一次内部试播。**
+当前版本：**v0.2.0-rc1**。这是试播版，生成质量和速度需要在你的实际直播电脑上测试。旧版 v0.1.0-rc1 不支持本地生成。
 
-## Windows 下载与启动（推荐）
+## Windows 下载
 
-1. 打开 [Releases 下载页](https://github.com/HarveyWho/video-channels-ai-assistant/releases)。进入最新的测试版本。
-2. 在 **Assets** 中下载 **`Live.Answer.Assistant.Windows.zip`**。这是包含运行环境的 Windows x64 程序包。若这个文件尚未出现，表示构建尚未完成，请稍后刷新。
-3. 右键压缩包，选择 **全部解压**。不要直接在压缩包里运行，也不要把 EXE 单独从文件夹里拖出来。
-4. 进入解压后的 `Live Answer Assistant` 文件夹，双击 **`Live Answer Assistant.exe`**。此方式无需另装 Python。
-5. 本程序目前没有代码签名。若 Windows 阻止运行，请核对下载来源和同一 Release 的 `SHA256.txt`，保留安全软件保护。也可以使用下方的源码方式运行。
+1. 打开 [Releases](https://github.com/HarveyWho/video-channels-ai-assistant/releases)，选择 **v0.2.0-rc1**。
+2. 在 Assets 中下载 **Live.Answer.Assistant.Windows.zip**。构建完成后才会出现这个文件。
+3. 右键“全部解压”，运行文件夹里的 **Live Answer Assistant.exe**，保留旁边的 `_internal` 文件夹。无需安装 Python。
+4. 程序标题应显示 **v0.2.0-rc1**。程序未签名；请核对来源、保留安全软件保护，必要时使用下面的源码方式。
 
-请完整保留程序旁边的 `_internal` 文件夹，它包含本地 OCR 组件和模型。运行需要连接 DeepSeek 的网络；API 按用量收费。
+ZIP 只包含助手、OCR 及其运行环境，**不包含 Ollama 或大语言模型权重**。
 
-校验下载文件时，可在 PowerShell 中运行 `Get-FileHash .\Live.Answer.Assistant.Windows.zip -Algorithm SHA256`，将结果与同一 Release 的 `SHA256.txt` 第一段哈希值比较。GitHub 可能将上传文件名的空格转换成点，因此以下载页实际文件名为准。
+## Surface Laptop 3 / 16GB 的本地设置
 
-## 配置 DeepSeek
+此配置可以尝试小模型，但 CPU 推理、直播编码与 OCR 会竞争资源。无法保证本地比云端更快，也不能把小模型当成完全准确的答案来源。
 
-1. 在 [DeepSeek 开放平台](https://platform.deepseek.com/api_keys)创建自己的 API Key，并确认 API 余额。网页聊天账号不等于已配置 API 调用。
-2. 点击助手里的 **设置 DeepSeek**，将密钥粘贴到隐藏输入框。密钥不用发给项目维护者，不要提交到 GitHub 或展示在直播画面中。
-3. 填写直播主题和参考资料，例如真实的课程介绍、价格、课表和常见问答。
-4. 点击 **测试连接**，确认成功后点击 **应用设置**。连接测试会产生少量 API 用量。
+1. 从 [Ollama 官方 Windows 下载页](https://ollama.com/download/windows)安装最新版 Ollama，并让它保持运行。
+2. 重新打开 PowerShell，执行下面的命令下载模型。模型约数 GB，请预留磁盘空间：
 
-密钥仅在本次运行内存中保留，退出后需要重新输入。程序也支持读取已有的 `DEEPSEEK_API_KEY` 环境变量，不会主动写入系统环境变量。
+```powershell
+ollama pull qwen3.5:2b
+```
 
-## 开播前的操作
+3. 打开助手的 **模型与资料设置 → 模型连接**，选择 **本地 Ollama**，模型填 `qwen3.5:2b`。本地模式不需要 DeepSeek 密钥。
+4. 点击 **测试连接 / 预热本地模型**，首次加载可能较慢。成功后会显示首字和完整回答耗时，再点 **应用设置**。
+5. 先手动输入直播中常见的问题测试，再边试播边测。若速度和答案质量可以接受，再考虑 `qwen3.5:4b`；4B 需要单独执行 `ollama pull qwen3.5:4b`，通常需要更多资源。
 
-1. 打开 Windows 视频号直播伴侣，保持评论列表可见，建议调大评论字号。
-2. 点击 **选择弹幕区域**。在屏幕快照中拖动鼠标框选评论文字，点 **使用这块区域**。尽量避开标题、礼物、人数和输入框。
-3. 把助手和提词窗口移到评论区域之外，再点击 **开始监听**。第一帧已有评论作为基线跳过，请发送一条新问题测试。
-4. 点击 **打开提词窗口**，把大字窗口放在靠近摄像头的位置。读完一条后点击 **下一条**；提词窗口有焦点时也支持 **Ctrl + 右方向键**，上一条为 **Ctrl + 左方向键**。
-5. 有问题没识别到时，可以在主窗口底部手动补充。点 **暂停**停止监听和后续生成；未完成的问题可以选中后重试。
+程序通过 `http://127.0.0.1:11434/api/chat` 连接本机 Ollama，设置 `think: false`、模型保留时间 `10m`、短回答和有限上下文。只使用已下载的本地模型，不使用带 cloud 的模型标签。请求在本地服务内的具体处理由你安装的 Ollama 决定。
 
-请检查直播伴侣的预览。如果直播采集整个桌面，提词窗口也可能被观众看到；建议使用摄像头或需要的指定窗口作为直播采集源。
+本地生成参考资料最多 3000 字，问题最多 600 字；过长资料会明确提示精简，不会悄悄截掉。先以 2B 小模型和简短资料实测，避免一边直播一边首次加载大模型。
 
-## Windows 第一次测试清单
+[Ollama 官方接口说明](https://docs.ollama.com/api/chat) · [Qwen3.5 2B 模型](https://ollama.com/library/qwen3.5:2b)
 
-建议先做内部试播，依次核对：
+## 固定问题直接显示确认过的答案
 
-- **连接**：设置中测试 DeepSeek 成功，手动提问能收到逐字显示的回答。
-- **资料**：填写一项虚构测试资料，例如“测试课程每周二上课”，手动询问并检查回答是否依据资料；正式直播前删除测试资料，换成真实信息。
-- **弹幕**：开始监听后发送“请问怎么报名？”，确认识别内容、问题队列和回答都出现。
-- **去重**：同一个问题保持在屏幕上时，不应连续重复入队；“1.5 小时够吗？”与“15 小时够吗？”应保留为两个问题。
-- **提词**：连续发两条不同问题，第一条显示后应保持；点击下一条或使用快捷键切换。
-- **暂停与错误**：暂停后不再处理新弹幕；错误密钥应显示提示并停止继续生成。已发出的请求可能仍计费。
-- **画面**：直播预览没有采集到密钥、参考资料或不想公开的提词内容。
+对于报名、课表、费用等问题，最快且可控的方式是使用你自己确认过的原文。到 **直播资料** 页按以下格式填写：
 
-若发现问题，请在 [Issues](https://github.com/HarveyWho/video-channels-ai-assistant/issues)中提供 Windows 版本、显示缩放、出错步骤和脱敏截图。不要上传 API Key、私人聊天或个人信息。
+```text
+问：请问怎么报名？
+答：在这里填写你确认过的报名流程。
 
-## 源码下载与启动（备选）
+问：一周几次课？
+答：在这里填写真实课表。
+```
 
-1. 在仓库首页点绿色 **Code → Download ZIP**，或下载 [main 分支源码 ZIP](https://github.com/HarveyWho/video-channels-ai-assistant/archive/refs/heads/main.zip)。Release 里的 **Source code (zip)** 也是源码包，需要 Python。
-2. 完整解压到可写入的本地文件夹。
-3. 安装官方 [Python 3.13、3.12 或 3.11 的 Windows 64 位版本](https://www.python.org/downloads/windows/)，勾选 **Add python.exe to PATH**，保留 **Tcl/Tk and IDLE**。
-4. 双击 **Start.bat**。首次会创建 `.venv` 并下载依赖，可能需要数分钟；默认清华 PyPI 镜像，失败后改用官方 PyPI。
-5. 窗口打开后，按上面的流程配置 DeepSeek 和评论区域。
+问题严格匹配后，直接显示对应答案，不调用本地或云端模型。只统一标点、空格和常见昵称前缀，不做模糊语义猜测，因此不同年级、数字和价格不会混在一起。问法不同就增加另一组“问 / 答”。若同一个问题配置了冲突答案，不会直接采用其中一个。示例文字请换成真实资料。
 
-面向 Windows 10/11 x64。本版不承诺支持 Windows ARM64、32 位 Python 或 Python 3.14 及更新版本。如果提示缺少 `VCRUNTIME140` 或原生 DLL，请按[微软官方说明](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)安装 x64 Visual C++ Redistributable。
+## 使用 DeepSeek 云端（可选）
 
-## 工作方式与限制
+到模型设置中主动选择 **DeepSeek 云端**，填写自己在 [DeepSeek 开放平台](https://platform.deepseek.com/api_keys)创建的 API Key，测试后应用。密钥只在本次运行内存中，不写进配置文件；云端按 API 用量收费。
 
-- 屏幕图像只在本机内存中做 OCR，不保存截图、不上传图像。发送给 DeepSeek 的是提问文字、你填写的主题和参考资料，以及程序提示词。
-- 通过可见屏幕读取评论，没有接入视频号官方弹幕 API。评论被遮挡、最小化或滚出屏幕后无法读取；高速弹幕、昵称徽章和复杂换行可能造成漏读、错读或重复。
-- 默认每约 1.5 秒识别一次，默认筛选疑问句；可以调整间隔或关闭疑问句筛选。实际响应时间还包含 OCR 和 DeepSeek 生成，不保证固定秒数。
-- 最多 8 条待生成或生成中的问题，每次只生成一条。超过上限的评论会跳过并提示，需要时可手动补充。
-- 答案以短口语回答为目标。AI 仍可能答错；费用、时间、政策和考试信息请主播核实后表达。程序没有联网检索功能。
-- 启动时会跳过已有旧弹幕；相同文字在本次运行内去重，最多保留 3000 条识别缓存。每个问题独立生成，不带入上一题聊天历史。
-- 不会向直播间自动发评论，也不会自动语音播报。
+模型仍为 `deepseek-flash`，关闭思考输出、逐字显示短答案。本地连接失败时不会自动调用 DeepSeek。云端也不保证固定响应时间。
 
-更多操作和故障处理见[使用说明](使用说明.md)。数据保存位置见[隐私与数据说明](PRIVACY.md)。
+## 开播和第三次没响应时的检查
 
-## 开发、自检与打包
+1. 打开直播伴侣，框选可见的评论区域。不要遮住评论列表。
+2. 点击 **开始监听**。新版默认处理当前可见问题；可在资料设置里关闭这个选项。
+3. 状态栏会显示识别、过滤、去重和本帧入队数量。没有入队时，会提示是没读到文字、没有疑问句、重复问题，还是跳过了启动画面。
+4. 重复使用同一问题测试时，点击 **重读当前弹幕**。它会清除识别去重记录，重新读取可见问题；队列中已经等待或生成的同题不会重复加入。
+5. 下方会显示所用模型、首字等待时间和生成状态。首字长时间不出现或整体超时会停止等待，显示原因，可以选中问题重试。
+6. 当前答案会保留，后续答案不会自动顶走它。读完点 **下一条**，提词窗口有焦点时可按 **Ctrl + 右方向键**。手动输入或选中的待生成问题会优先处理。
+7. 没读到问题时，可先手动输入带问号的问题测试。只处理疑问句是规则筛选，可在设置里关闭。
+
+点击 **暂停** 会请求取消模型读取，并停止监听。网络建立阶段可能仍需等连接超时。已经发出的云端请求可能仍计费，不会自动反复重试。
+
+开始正式直播前检查采集源，确保密钥、参考资料和不准备公开的提词窗口没有被直播画面采集。
+
+## 限制与隐私
+
+- 通过可见屏幕 OCR 读取评论，没有使用视频号官方弹幕 API。高速滚屏、遮挡和复杂排版可能漏读。
+- 最多 8 条待生成或生成中的问题，超过上限会跳过并提示；需要时手动补充或重读。
+- AI 的事实与语言质量需要主播确认，尤其是价格、时间和政策。本程序没有联网检索功能。
+- 模型选择、资料、字号等设置保存在 `%LOCALAPPDATA%/Live Answer Assistant/settings.json`。同目录 `diagnostics.log` 记录后端、请求编号、耗时和错误类型，不主动记录问题、回答、主题、资料或密钥。
+- 屏幕图像不保存、不上传。本地模式连接本机；云端模式会将问题、主题和资料发送给 DeepSeek。详细说明见 [PRIVACY.md](PRIVACY.md)。
+
+## 源码方式
+
+仓库首页选择 **Code → Download ZIP**。安装官方 [Windows x64 Python 3.11–3.13](https://www.python.org/downloads/windows/)，保留 Tcl/Tk 组件并勾选 Add python.exe to PATH，解压后双击 `Start.bat`。
 
 ```powershell
 py -3.13 -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m unittest -v tests
-.venv\Scripts\python.exe app.py --demo
+.venv/Scripts/python.exe -m pip install -r requirements.txt
+.venv/Scripts/python.exe -m unittest -v tests
+.venv/Scripts/python.exe app.py
 ```
 
-`--demo` 只显示固定示例，不采集屏幕、不调用 DeepSeek。
+固定演示：`python app.py --demo`，不连接模型、不采集屏幕。Windows 独立包由 GitHub Actions 打包；本地开发打包需安装 `requirements build.txt` 并运行 `python package.py`。
 
-GitHub Actions 的 **Checks** 在 Windows 上检查 Python 3.11、3.12、3.13。发布 Release 后，**Windows release** 工作流使用 Windows runner 打包，运行本地 OCR 与界面构造自检，再运行打包后 EXE 的相同自检；通过后上传 ZIP 和校验值。自检不调用 DeepSeek，也不读取真实直播弹幕。
+每次发布会检查源码和打包后的 OCR、界面构造；这些检查不代表你电脑上的模型速度或真实视频号直播已通过。[查看 Actions](https://github.com/HarveyWho/video-channels-ai-assistant/actions)。
 
-手动打包可在 Windows 上安装 `requirements build.txt`，执行 `python package.py`。生成文件位于 `release` 目录。第三方组件和模型保留各自许可证，见 [THIRD PARTY NOTICES.md](THIRD%20PARTY%20NOTICES.md)。
-
-## 验证边界
-
-最初在 Mac 环境通过 14 项核心测试、模拟 HTTP 流式接口测试和深浅背景中文人工样张 OCR 测试。GitHub 上的 Windows 自动构建结果请以 [Actions](https://github.com/HarveyWho/video-channels-ai-assistant/actions)记录为准。自动检查无法代替用户电脑上的显示缩放、多屏、高负载、真实视频号弹幕和真实 DeepSeek 连接测试。
-
-## 开源许可
-
-本项目自行编写的代码采用 [MIT License](LICENSE)，可以使用、修改和分发。项目与微信、视频号、腾讯及 DeepSeek 均无官方隶属关系，也不提供任何官方接口授权。
+项目自行编写的代码采用 [MIT License](LICENSE)。第三方组件保留各自许可证，见 [THIRD PARTY NOTICES.md](THIRD%20PARTY%20NOTICES.md)。与微信、腾讯、视频号、DeepSeek 或 Ollama 均无官方隶属关系。

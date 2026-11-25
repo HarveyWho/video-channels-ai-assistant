@@ -1,34 +1,26 @@
-视频号直播答疑助手 · Windows 下载与测试
+视频号直播答疑助手 v0.2.0-rc1 · Windows / Surface Laptop 3
 
-推荐下载地址：
-https://github.com/HarveyWho/video-channels-ai-assistant/releases
+下载：https://github.com/HarveyWho/video-channels-ai-assistant/releases
+下载本版本的 Live.Answer.Assistant.Windows.zip，完整解压，运行 Live Answer Assistant.exe。保留 _internal 文件夹。标题应显示 v0.2.0-rc1。
 
-一、下载独立程序
-1. 在最新测试版本的 Assets 中下载 Live.Answer.Assistant.Windows.zip。
-2. 右键“全部解压”，进入 Live Answer Assistant 文件夹。
-3. 双击 Live Answer Assistant.exe，无需安装 Python。
-4. 保留旁边的 _internal 文件夹，不要只复制 EXE。
-5. 这是尚未代码签名的开源测试程序。请核对来源和 SHA256，保留安全软件保护；遇到阻止运行也可选择仓库首页的 Python 源码方式。
+本地模型需要另外安装：
+1. 到 https://ollama.com/download/windows 安装并打开 Ollama。
+2. 重新打开 PowerShell，执行：ollama pull qwen3.5:2b
+3. 助手中进入“模型与资料设置”，选择本地 Ollama，模型为 qwen3.5:2b。
+4. 点击“测试连接 / 预热本地模型”，查看首字和完整回答耗时，成功后应用设置。
+5. 本地不需要 API Key，不会自动回退云端。模型不在助手 ZIP 内，需要另行下载数 GB。
 
-二、连接 DeepSeek
-1. 在 https://platform.deepseek.com/api_keys 创建自己的 API Key，确认 API 账户余额。
-2. 打开“设置 DeepSeek”，粘贴密钥，填写直播主题和真实参考资料。
-3. 点击“测试连接”，成功后点“应用设置”。密钥只在本次运行中保留，不用发送给维护者。
+先手动提问测试，再框选评论并开始监听。新版默认处理当前可见问题。
+重复同一个问题测试时，点“重读当前弹幕”。状态栏会显示过滤、重复和入队数量。
+当前答案会保留，后面生成的答案需要点击“下一条”查看。
 
-三、测试弹幕与提词
-1. 打开视频号直播伴侣，保持评论列表可见。
-2. 点击“选择弹幕区域”，在截图上框选评论文字，再点“使用这块区域”。
-3. 把助手和提词窗口移动到评论区域之外，点击“开始监听”。
-4. 第一帧旧弹幕会跳过；发送一条新的“请问怎么报名？”测试。
-5. 确认问题入队、DeepSeek 答案逐字出现、提词窗口大字可读。
-6. 连续发送两条不同问题，当前答案应该保留；读完点击“下一条”，或在提词窗口按 Ctrl + 右方向键。
-7. 检查重复弹幕不会连续入队；检查“暂停”能停止处理后续问题。
-8. 检查直播预览没有采集到密钥、私人资料或不准备公开的提词内容。
+固定问答：在直播资料页按下面格式填你确认过的内容，严格匹配后会直接显示，不调用模型：
+问：请问怎么报名？
+答：在这里填写真实报名流程。
 
-四、问题反馈
-https://github.com/HarveyWho/video-channels-ai-assistant/issues
+Surface Laptop 3 / 16GB 可以尝试小模型，但边直播边生成未必比云端快。先测 2B，不保证秒回或完全准确。
+若选择 DeepSeek 云端，需填写自己的 API Key；本地失败不会悄悄转发云端。
 
-请提供 Windows 版本、显示缩放、操作步骤和脱敏截图；不要上传密钥、私人聊天或个人信息。
-屏幕 OCR 可能漏读高速滚动弹幕；自动构建自检不等于真实视频号和 DeepSeek 连接已经验证。请先内部试播，再考虑正式直播。
-
-源码备用流程、完整说明和当前验证状态见仓库 README。
+没有回答时请看：是否入队、是否显示等待首字、是否已暂停；先检查模型测试是否成功。诊断记录在 %LOCALAPPDATA%/Live Answer Assistant/diagnostics.log。
+请先内部试播，检查提词窗口未被直播采集。程序尚未签名，保留安全软件保护。
+完整说明和问题反馈见仓库 README 和 Issues；不要上传密钥或私人截图。

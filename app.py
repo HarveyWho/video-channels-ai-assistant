@@ -1,6 +1,8 @@
 """Windows companion: local OCR -> DeepSeek -> a pinned teleprompter."""
 import ctypes
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 import os
 import queue
 import sys
@@ -18,7 +20,7 @@ if sys.platform == "win32":
 
 import tkinter as tk
 from tkinter import messagebox, ttk
-from core import ApiError, Cancelled, DeepSeekClient, QuestionTracker
+from core import ApiError, Cancelled, DeepSeekClient, OllamaClient, QuestionTracker, local_answer, normalise
 from vision import ScreenReader, overlaps, valid_region
 
 PAPER = "#F5F1E8"
@@ -28,7 +30,9 @@ GREEN = "#245E4B"
 NIGHT = "#192522"
 CREAM = "#F7F1E3"
 FONT = "SimSun" if sys.platform == "win32" else "Songti SC"
+VERSION = "0.2.0-rc1"
 CONFIG = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "Live Answer Assistant" / "settings.json"
+LOG=logging.getLogger("live.answer")
 
 
 @dataclass
@@ -38,6 +42,10 @@ class Answer:
     text: str = ""
     state: str = "待生成"
     error: str = ""
+    engine: str = ""
+    started: float = 0.0
+    first_s: float = -1.0
+    elapsed_s: float = 0.0
 
 
 class Prompter(tk.Toplevel):
@@ -97,6 +105,7 @@ class Assistant:
         self.active = None
         self.generating = False
         self.test_busy = False
+        self.test_started = 0.0
         self.next_request_at = 0
         self.prompter = None
         self.settings_window = None
@@ -104,11 +113,24 @@ class Assistant:
         self.region = None
         self.fontsize = 28
         self.key = os.environ.get("DEEPSEEK_API_KEY", "")
+        self.provider = "ollama"
+        self.local_model = "qwen3.5:2b"
+        self.process_existing = True
+        self.force_current = False
         self.topic = ""
         self.context = ""
         self.only_questions = True
         self.interval = 1.5
         self.config_warning = ""
+        if not demo and not LOG.handlers:
+            try:
+                CONFIG.parent.mkdir(parents=True,exist_ok=True)
+                handler=RotatingFileHandler(CONFIG.parent/"diagnostics.log",maxBytes=200000,backupCount=1,encoding="utf-8")
+                handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+                LOG.addHandler(handler)
+                LOG.setLevel(logging.INFO)
+            except OSError:
+                pass
         self.load_config()
         self.build()
         self.root.protocol("WM_DELETE_WINDOW", self.close)
@@ -128,6 +150,11 @@ class Assistant:
                 data = json.loads(CONFIG.read_text(encoding="utf-8"))
                 self.topic = str(data.get("topic", ""))[:300]
                 self.context = str(data.get("context", ""))[:12000]
+                self.provider = data.get("provider","ollama")
+                if self.provider not in ("ollama","deepseek"):
+                    self.provider="ollama"
+                self.local_model = str(data.get("local_model","qwen3.5:2b"))[:100]
+                self.process_existing = bool(data.get("process_existing",True))
                 self.only_questions = bool(data.get("only_questions", True))
                 self.interval = max(1.0, min(10.0, float(data.get("interval", 1.5))))
                 self.fontsize = max(18, min(52, int(data.get("fontsize", 28))))
@@ -144,14 +171,15 @@ class Assistant:
             temp = CONFIG.with_suffix(".tmp")
             temp.write_text(json.dumps({"topic": self.topic, "context": self.context,
                 "only_questions": self.only_questions, "interval": self.interval,
-                "fontsize": self.fontsize, "region": self.region}, ensure_ascii=False, indent=2), encoding="utf-8")
+                "fontsize": self.fontsize, "region": self.region,"provider":self.provider,
+                "local_model":self.local_model,"process_existing":self.process_existing}, ensure_ascii=False, indent=2), encoding="utf-8")
             temp.replace(CONFIG)
         except OSError:
             self.status("设置未能保存；本次运行仍然可以使用。", True)
 
     def build(self):
         root = self.root
-        root.title("视频号直播答疑助手 · DeepSeek")
+        root.title("直播答疑助手 v"+VERSION+" · 本地模型 / DeepSeek")
         root.geometry("1040x720")
         root.minsize(820, 600)
         root.configure(bg=PAPER)
@@ -170,14 +198,15 @@ class Assistant:
         header = ttk.Frame(root)
         header.grid(row=0,column=0,sticky="ew",padx=24,pady=(20,12))
         ttk.Label(header, text="直播答疑", font=(FONT, 25, "bold")).pack(side="left")
-        ttk.Label(header, text="DeepSeek · 本地识别 · 主播提词", foreground=MUTED).pack(side="left", padx=18)
+        ttk.Label(header, text="本地优先 · 主播提词", foreground=MUTED).pack(side="left", padx=18)
         tools = ttk.Frame(root)
         tools.grid(row=1,column=0,sticky="ew",padx=24,pady=(0,10))
-        ttk.Button(tools, text="设置 DeepSeek", command=self.settings).pack(side="left", padx=(0, 8))
+        ttk.Button(tools, text="模型与资料设置", command=self.settings).pack(side="left", padx=(0, 8))
         ttk.Button(tools, text="选择弹幕区域", command=self.select_region).pack(side="left", padx=(0, 8))
         self.start_button = ttk.Button(tools, text="开始监听", style="Accent.TButton", command=self.start)
         self.start_button.pack(side="left", padx=(0, 8))
         ttk.Button(tools, text="暂停", command=self.pause).pack(side="left")
+        ttk.Button(tools,text="重读当前弹幕",command=self.reread).pack(side="left",padx=8)
         ttk.Button(tools, text="打开提词窗口", command=self.show_prompter).pack(side="right")
         self.region_label = ttk.Label(root, text=self.region_description(), foreground=MUTED, font=(FONT, 10))
         self.region_label.grid(row=2,column=0,sticky="ew",padx=26,pady=(0,12))
@@ -220,8 +249,10 @@ class Assistant:
         ttk.Button(bottom, text="手动补充问题", command=self.submit).pack(side="right", padx=(10,0))
         self.status_label = tk.Label(root, text="", bg=PAPER, fg=MUTED, font=(FONT, 11), anchor="w", justify="left", wraplength=980)
         self.status_label.grid(row=5,column=0,sticky="ew",padx=26,pady=(0,16))
+        self.progress_label=ttk.Label(root,text="",foreground=MUTED,font=(FONT,10),wraplength=980)
+        self.progress_label.grid(row=6,column=0,sticky="ew",padx=26,pady=(0,8))
         root.bind("<Configure>",lambda e:self.status_label.configure(wraplength=max(600,e.width-52)) if e.widget==root else None)
-        self.status(self.config_warning or "先设置密钥，再选择评论区域。启动时会跳过已显示的旧弹幕，只回答后续新问题。")
+        self.status(self.config_warning or "先选择本地或云端模型，再选评论区域。默认会处理当前可见问题；无入队时会显示原因。")
         self.refresh()
 
     def status(self, text, error=False):
@@ -235,85 +266,139 @@ class Assistant:
         r = self.region
         return "弹幕区域：%s × %s 像素，位置 (%s, %s)；移动直播伴侣或改变缩放后请重新选择。" % (r["width"],r["height"],r["left"],r["top"])
 
+    def selected_client(self, provider=None, model=None, warm=False):
+        provider=provider or self.provider
+        if provider=="ollama":
+            return OllamaClient(model or self.local_model,first_timeout=60 if warm else 30,total_timeout=90 if warm else 75)
+        return DeepSeekClient()
+
     def settings(self):
         if self.settings_window and self.settings_window.winfo_exists():
             self.settings_window.lift()
             return
-        win = self.settings_window = tk.Toplevel(self.root)
-        win.title("DeepSeek 与直播资料")
-        win.geometry("720x650")
-        win.minsize(600, 570)
-        frame = ttk.Frame(win, padding=22)
-        frame.pack(fill="both", expand=True)
-        frame.grid_rowconfigure(7,weight=1)
+        win=self.settings_window=tk.Toplevel(self.root)
+        win.title("模型与直播资料")
+        win.geometry("740x730")
+        win.minsize(640,640)
+        frame=ttk.Frame(win,padding=20)
+        frame.pack(fill="both",expand=True)
         frame.grid_columnconfigure(0,weight=1)
-        ttk.Label(frame, text="DeepSeek API Key", font=(FONT,14,"bold")).grid(row=0,column=0,sticky="w")
-        key = ttk.Entry(frame, show="*", font=(FONT,12))
-        key.insert(0, self.key)
-        key.grid(row=1,column=0,sticky="ew",pady=(7,5),ipady=6)
-        ttk.Label(frame, text="密钥仅用于本次运行，不写入设置文件。", foreground=MUTED, font=(FONT,10)).grid(row=2,column=0,sticky="w")
-        links = ttk.Frame(frame)
-        links.grid(row=3,column=0,sticky="ew",pady=(8,14))
-        ttk.Button(links, text="打开 DeepSeek 密钥页面", command=lambda: webbrowser.open("https://platform.deepseek.com/api_keys")).pack(side="left")
-        ttk.Button(links, text="测试连接（会产生少量 API 用量）", command=lambda: self.test_connection(key.get().strip())).pack(side="left", padx=8)
-        ttk.Label(frame, text="直播主题").grid(row=4,column=0,sticky="w")
-        topic = ttk.Entry(frame, font=(FONT,12))
+        frame.grid_rowconfigure(1,weight=1)
+        ttk.Label(frame,text="选择回答方式",font=(FONT,16,"bold")).grid(row=0,column=0,sticky="w",pady=(0,12))
+        notebook=ttk.Notebook(frame)
+        notebook.grid(row=1,column=0,sticky="nsew")
+        model_tab=ttk.Frame(notebook,padding=16)
+        data_tab=ttk.Frame(notebook,padding=16)
+        notebook.add(model_tab,text="模型连接")
+        notebook.add(data_tab,text="直播资料")
+        model_tab.grid_columnconfigure(0,weight=1)
+        provider=ttk.Combobox(model_tab,values=["本地 Ollama","DeepSeek 云端"],state="readonly",font=(FONT,12))
+        provider.set("本地 Ollama" if self.provider=="ollama" else "DeepSeek 云端")
+        provider.grid(row=0,column=0,sticky="ew",pady=(0,16))
+        ttk.Label(model_tab,text="本地模型名称").grid(row=1,column=0,sticky="w")
+        model=ttk.Combobox(model_tab,values=["qwen3.5:2b","qwen3.5:4b","qwen3:1.7b"],font=(FONT,12))
+        model.set(self.local_model)
+        model.grid(row=2,column=0,sticky="ew",pady=(6,8))
+        ttk.Label(model_tab,text="先安装 Ollama，再在 PowerShell 执行：\nollama pull qwen3.5:2b\n本地模式只连接本机，不自动回退云端。模型需单独下载。",foreground=MUTED,wraplength=620).grid(row=3,column=0,sticky="w",pady=(0,12))
+        ttk.Button(model_tab,text="打开 Ollama Windows 下载页",command=lambda:webbrowser.open("https://ollama.com/download/windows")).grid(row=4,column=0,sticky="w",pady=(0,20))
+        ttk.Label(model_tab,text="DeepSeek API Key（只有云端模式需要）").grid(row=5,column=0,sticky="w")
+        key=ttk.Entry(model_tab,show="*",font=(FONT,12))
+        key.insert(0,self.key)
+        key.grid(row=6,column=0,sticky="ew",pady=(6,8),ipady=5)
+        ttk.Label(model_tab,text="密钥仅本次运行有效，不写入设置文件。",foreground=MUTED,font=(FONT,10)).grid(row=7,column=0,sticky="w")
+        ttk.Button(model_tab,text="打开 DeepSeek 密钥页",command=lambda:webbrowser.open("https://platform.deepseek.com/api_keys")).grid(row=8,column=0,sticky="w",pady=(10,16))
+        def chosen():
+            return "ollama" if provider.get()=="本地 Ollama" else "deepseek"
+        ttk.Button(model_tab,text="测试连接 / 预热本地模型",command=lambda:self.test_connection(key.get().strip(),chosen(),model.get().strip())).grid(row=9,column=0,sticky="ew",pady=(6,10))
+        ttk.Label(model_tab,text="首次加载模型可能较慢；测试成功后模型保留在内存 10 分钟。\n云端测试会产生少量 API 用量。",foreground=MUTED,font=(FONT,10),wraplength=620).grid(row=10,column=0,sticky="w")
+        local_controls=[widget for row in range(1,5) for widget in model_tab.grid_slaves(row=row)]
+        cloud_controls=[widget for row in range(5,9) for widget in model_tab.grid_slaves(row=row)]
+        def mode_changed(event=None):
+            for widget in local_controls:
+                widget.grid() if chosen()=="ollama" else widget.grid_remove()
+            for widget in cloud_controls:
+                widget.grid() if chosen()=="deepseek" else widget.grid_remove()
+        provider.bind("<<ComboboxSelected>>",mode_changed)
+        mode_changed()
+        data_tab.grid_columnconfigure(0,weight=1)
+        data_tab.grid_rowconfigure(3,weight=1)
+        ttk.Label(data_tab,text="直播主题").grid(row=0,column=0,sticky="w")
+        topic=ttk.Entry(data_tab,font=(FONT,12))
         topic.insert(0,self.topic)
-        topic.grid(row=5,column=0,sticky="ew",pady=(6,12),ipady=5)
-        ttk.Label(frame, text="参考资料：课程介绍、真实价格、时间、常见问答等").grid(row=6,column=0,sticky="w")
-        context = tk.Text(frame, height=3, font=(FONT,12), wrap="word", padx=10,pady=10)
+        topic.grid(row=1,column=0,sticky="ew",pady=(6,14),ipady=5)
+        ttk.Label(data_tab,text="真实参考资料；固定问答可按“问：问题”换行“答：确认过的答案”填写",wraplength=620).grid(row=2,column=0,sticky="w")
+        context=tk.Text(data_tab,height=5,font=(FONT,12),wrap="word",padx=10,pady=10)
         context.insert("1.0",self.context)
-        context.grid(row=7,column=0,sticky="nsew",pady=(6,12))
-        only = tk.BooleanVar(value=self.only_questions)
-        ttk.Checkbutton(frame, text="只处理疑问句（漏掉陈述式提问时可关闭）", variable=only).grid(row=8,column=0,sticky="w")
-        row = ttk.Frame(frame)
-        row.grid(row=9,column=0,sticky="ew",pady=(10,12))
-        ttk.Label(row, text="识别间隔（秒，1 到 10）").pack(side="left")
-        interval = ttk.Spinbox(row, from_=1, to=10, increment=0.5, width=6)
+        context.grid(row=3,column=0,sticky="nsew",pady=(6,12))
+        only=tk.BooleanVar(value=self.only_questions)
+        existing=tk.BooleanVar(value=self.process_existing)
+        ttk.Checkbutton(data_tab,text="只处理疑问句（陈述式提问可关闭）",variable=only).grid(row=4,column=0,sticky="w")
+        ttk.Checkbutton(data_tab,text="启动监听时处理当前可见问题",variable=existing).grid(row=5,column=0,sticky="w",pady=(8,8))
+        row=ttk.Frame(data_tab)
+        row.grid(row=6,column=0,sticky="ew",pady=(8,0))
+        ttk.Label(row,text="识别间隔（秒，1 到 10）").pack(side="left")
+        interval=ttk.Spinbox(row,from_=1,to=10,increment=.5,width=6)
         interval.set(self.interval)
-        interval.pack(side="left", padx=10)
-        ttk.Label(frame, text="当前模型：deepseek-flash；关闭深度思考，答案逐字显示。", foreground=MUTED,font=(FONT,10)).grid(row=10,column=0,sticky="w")
-        self.settings_status=ttk.Label(frame,text="",foreground=MUTED,font=(FONT,10),wraplength=540)
-        self.settings_status.grid(row=11,column=0,sticky="ew",pady=(8,0))
+        interval.pack(side="left",padx=10)
+        self.settings_status=ttk.Label(frame,text="请先测试连接，再应用设置。",foreground=MUTED,wraplength=660,font=(FONT,10))
+        self.settings_status.grid(row=2,column=0,sticky="ew",pady=(12,8))
         def save():
             try:
-                value = float(interval.get())
-                if not 1 <= value <= 10:
+                value=float(interval.get())
+                if not 1<=value<=10:
                     raise ValueError()
-            except ValueError:
-                messagebox.showerror("间隔无效", "请输入 1 到 10 之间的秒数。", parent=win)
+                if chosen()=="ollama":
+                    OllamaClient(model.get().strip())
+            except (ValueError,ApiError) as exc:
+                messagebox.showerror("设置无效",str(exc) if isinstance(exc,ApiError) else "请输入 1 到 10 之间的识别间隔。",parent=win)
                 return
-            if len(context.get("1.0", "end-1c")) > 12000:
-                messagebox.showerror("资料过长", "请把参考资料缩短到 12000 字以内。",parent=win)
+            if len(context.get("1.0","end-1c"))>12000:
+                messagebox.showerror("资料过长","参考资料请控制在 12000 字以内；本地生成建议先精简到 3000 字以内。",parent=win)
                 return
-            self.key = key.get().strip()
-            self.topic = topic.get()[:300]
-            self.context = context.get("1.0","end-1c")
-            self.only_questions = only.get()
-            self.interval = value
+            self.provider=chosen()
+            self.local_model=model.get().strip()
+            self.key=key.get().strip()
+            self.topic=topic.get()[:300]
+            self.context=context.get("1.0","end-1c")
+            self.only_questions=only.get()
+            self.process_existing=existing.get()
+            self.interval=value
             self.save_config()
             win.destroy()
-            self.status("设置已应用。可以先手动输入一个问题验证回答，再开始监听。")
-        ttk.Button(frame,text="应用设置",style="Accent.TButton",command=save).grid(row=12,column=0,sticky="e",pady=(14,0))
+            self.status("设置已应用。先手动输入一个问题测试，再开始监听；本地模式不会自动转发到云端。")
+        ttk.Button(frame,text="应用设置",style="Accent.TButton",command=save).grid(row=3,column=0,sticky="e",pady=(6,0))
 
-    def test_connection(self, key):
+    def test_connection(self,key,provider=None,model=None):
         if self.demo:
-            self.status("演示模式不会连接 API。")
+            self.status("演示模式不会连接模型。")
             return
         if self.test_busy or self.active is not None:
             self.status("正在生成回答，请完成后再测试连接。")
             return
-        if not key:
-            self.status("请先在设置窗口填写 DeepSeek API Key。",True)
+        provider=provider or self.provider
+        model=model or self.local_model
+        if provider=="deepseek" and not key:
+            self.status("云端模式需要填写 DeepSeek API Key；本地模式不需要。",True)
             return
-        self.test_busy = True
-        self.status("正在测试 DeepSeek 连接…")
+        self.test_busy=True
+        self.test_started=time.monotonic()
+        self.status("正在测试并预热本地模型…" if provider=="ollama" else "正在测试 DeepSeek 连接…")
         def work():
             try:
-                text = "".join(self.client.stream(key,"请只回复：连接成功。","","",threading.Event()))
-                self.events.put(("test",True,"DeepSeek 连接成功，可以开始答疑。" if text else "未收到回答。"))
+                client=self.selected_client(provider,model,warm=True)
+                parts=[]
+                first=-1.0
+                for part in client.stream(key,"请只回复：连接成功。","","",threading.Event()):
+                    if first<0:
+                        first=time.monotonic()-self.test_started
+                    parts.append(part)
+                text="".join(parts)
+                elapsed=time.monotonic()-self.test_started
+                self.events.put(("test",True,"连接成功：首字 %.1f 秒，完整回答 %.1f 秒。请应用设置。"%(first,elapsed) if text else "未收到回答。"))
+                LOG.info("connection test passed provider=%s seconds=%.1f",provider,elapsed)
             except Exception as exc:
-                self.events.put(("test",False,str(exc) if isinstance(exc,ApiError) else "连接失败，请检查网络和密钥。"))
+                self.events.put(("test",False,str(exc) if isinstance(exc,ApiError) else "连接失败，请检查模型服务。"))
+                LOG.info("connection test failed provider=%s type=%s",provider,type(exc).__name__)
         threading.Thread(target=work,daemon=True).start()
 
     def select_region(self):
@@ -394,10 +479,6 @@ class Assistant:
         if self.demo:
             self.status("演示模式不会采集屏幕或调用 API。")
             return
-        if not self.key:
-            self.settings()
-            self.status("先填写 DeepSeek API Key。",True)
-            return
         if not self.region:
             self.select_region()
             return
@@ -443,14 +524,29 @@ class Assistant:
         self.monitor_thread=threading.Thread(target=work,daemon=True)
         self.monitor_thread.start()
 
+    def reread(self):
+        if self.demo:
+            self.status("演示模式不读取屏幕。")
+            return
+        self.tracker=QuestionTracker()
+        self.force_current=True
+        self.generating=True
+        if not self.monitor_thread or not self.monitor_thread.is_alive():
+            self.start()
+        else:
+            self.status("已清除去重记录，下一帧重新读取当前可见问题；队列中已有的问题不会重复加入。")
+
     def pause(self):
         self.monitor_stop.set()
+        self.monitor_epoch+=1
         self.generating=False
         self.cancel.set()
         self.start_button.configure(state="normal")
         self.status("已暂停监听和新回答生成；当前文字保留，未完成的问题可点击重试。")
 
     def append_question(self, question, source):
+        if any(r.state in ("待生成","生成中") and normalise(r.question)==normalise(question) for r in self.records):
+            return False
         if sum(r.state in ("待生成","生成中") for r in self.records)>=8:
             self.status("待处理问题已达到 8 条，新问题暂未入队；可稍后手动补充。",True)
             return False
@@ -466,9 +562,6 @@ class Assistant:
             return
         if self.demo:
             self.status("演示模式仅展示固定示例。")
-            return
-        if not self.key:
-            self.settings()
             return
         if len(text)>600:
             self.status("问题请控制在 600 字以内。",True)
@@ -486,12 +579,11 @@ class Assistant:
         if item.state=="生成中":
             self.status("当前问题正在生成，请稍候。")
             return
-        if not self.key:
-            self.settings()
-            return
         item.text=""
         item.error=""
         item.state="待生成"
+        item.first_s=-1.0
+        item.elapsed_s=0.0
         self.generating=True
         self.refresh()
 
@@ -556,7 +648,10 @@ class Assistant:
         self.rendered_current=self.current
         item=self.records[self.current] if self.current is not None and self.current<len(self.records) else None
         question=item.question if item else "等待观众提问"
-        content=(item.text or ("正在生成，答案会逐字显示…" if item.state=="生成中" else "等待生成…")) if item else "先设置 DeepSeek，再选择弹幕区域。\n\n也可以在下方手动输入一个问题，先验证回答效果。"
+        content=(item.text or ("正在等待模型首字，等待时间见下方状态…" if item.state=="生成中" else "等待生成…")) if item else "先在模型设置中选择本地 Ollama 或 DeepSeek，再选择评论区域。\n\n先手动输入问题验证连接。默认读取当前可见问题，重复测试可点“重读当前弹幕”。"
+        if item and item.state=="待生成":
+            ahead=sum(r.state in ("待生成","生成中") for r in self.records[:self.current])
+            content="前面还有 %s 条问题，请稍候。"%ahead if self.generating else "生成已暂停。点击开始监听或重试当前问题。"
         if item and item.error:
             content+="\n\n【回答未完成】"+item.error
         self.question_label.configure(text=question)
@@ -568,8 +663,11 @@ class Assistant:
             self.set_text(self.prompter.body,content)
             if changed_selection:
                 self.prompter.body.yview_moveto(0)
-            self.prompter.foot.configure(text=(item.state+" · ") if item else "等待问题 · ")
-            self.prompter.foot.configure(text=self.prompter.foot.cget("text")+"读完后点击下一条，或按 Ctrl + 方向键。")
+            ready=sum(r.state=="已完成" for r in self.records[(self.current or 0)+1:])
+            detail=(item.state+" · "+item.engine) if item else "等待问题"
+            if item and item.first_s>=0:
+                detail+=" · 首字 %.1f 秒"%item.first_s
+            self.prompter.foot.configure(text=detail+" · 后面已完成 %s 条；读完点下一条。"%ready,wraplength=max(300,self.prompter.winfo_width()-48))
 
     def check_overlap(self):
         blocked=False
@@ -587,6 +685,8 @@ class Assistant:
         if not self.generating or self.active is not None or self.test_busy or self.demo or time.monotonic()<self.next_request_at:
             return
         index=next((i for i,item in enumerate(self.records) if item.state=="待生成"),None)
+        if self.current is not None and self.records[self.current].state=="待生成":
+            index=self.current
         if index is None:
             return
         self.active=index
@@ -594,13 +694,31 @@ class Assistant:
         item.state="生成中"
         item.text=""
         item.error=""
+        item.started=time.monotonic()
+        item.first_s=-1.0
+        item.elapsed_s=0.0
+        preset=local_answer(item.question,self.context)
+        if preset is not None:
+            item.text=preset
+            item.state="已完成"
+            item.engine="本地固定问答"
+            item.first_s=0.0
+            item.elapsed_s=time.monotonic()-item.started
+            self.active=None
+            self.refresh()
+            LOG.info("local preset answered id=%s",index)
+            return
+        provider,model=self.provider,self.local_model
+        item.engine=("Ollama / "+model) if provider=="ollama" else "DeepSeek"
         self.cancel=threading.Event()
         cancel=self.cancel
         key,topic,context=self.key,self.topic,self.context
         self.refresh()
+        LOG.info("request started provider=%s id=%s",provider,index)
         def work():
             try:
-                for part in self.client.stream(key,item.question,topic,context,cancel):
+                client=self.selected_client(provider,model)
+                for part in client.stream(key,item.question,topic,context,cancel):
                     self.events.put(("delta",index,part))
                 self.events.put(("done",index))
             except Cancelled:
@@ -610,7 +728,26 @@ class Assistant:
                 self.events.put(("answer_error",index,text))
         threading.Thread(target=work,daemon=True).start()
 
-    def poll(self):
+    def handle_ocr(self,lines,first=False):
+        self.last_ocr=lines
+        baseline=first and not self.process_existing and not self.force_current
+        fresh=self.tracker.ingest(lines,self.only_questions,baseline=baseline)
+        self.force_current=False
+        accepted=sum(self.append_question(q,"弹幕") for q in fresh)
+        stats=self.tracker.stats
+        if baseline:
+            hint="已按设置跳过启动画面；需要时点重读当前弹幕。"
+        elif not lines:
+            hint="没有读到文字，请检查框选区域或窗口遮挡。"
+        elif stats["duplicate"]:
+            hint="相同问题已去重；重复测试请点重读当前弹幕。"
+        elif not fresh:
+            hint="没有疑问句；可关闭疑问句筛选或手动补充。"
+        else:
+            hint="新问题已加入队列。" if accepted else "队列已有相同问题或已满。"
+        self.status("识别 %s 条，过滤 %s 条，重复 %s 条，本帧入队 %s 条。%s"%(stats["read"],stats["filtered"],stats["duplicate"],accepted,hint))
+
+    def poll_once(self):
         changed=False
         try:
             for _ in range(300):
@@ -619,11 +756,7 @@ class Assistant:
                 if kind in ("ocr","monitor_status","monitor_error","monitor_end") and event[1]!=self.monitor_epoch:
                     continue
                 if kind=="ocr":
-                    self.last_ocr=event[2]
-                    for q in self.tracker.ingest(event[2],self.only_questions,baseline=event[3]):
-                        self.append_question(q,"弹幕")
-                    if event[3]:
-                        self.status("正在监听：已跳过当前旧弹幕，后续新问题会自动生成答案。")
+                    self.handle_ocr(event[2],event[3])
                 elif kind=="monitor_status":
                     self.status(event[2])
                 elif kind=="monitor_error":
@@ -634,9 +767,12 @@ class Assistant:
                 elif kind=="delta" and event[1]==self.active:
                     if not self.cancel.is_set():
                         self.records[event[1]].text+=event[2]
+                        if self.records[event[1]].first_s<0:
+                            self.records[event[1]].first_s=time.monotonic()-self.records[event[1]].started
                         changed=True
                 elif kind in ("done","cancelled","answer_error") and event[1]==self.active:
                     item=self.records[event[1]]
+                    item.elapsed_s=time.monotonic()-item.started
                     if kind=="done" and not self.cancel.is_set():
                         item.state="已完成"
                     elif kind=="cancelled" or self.cancel.is_set():
@@ -648,7 +784,8 @@ class Assistant:
                         self.pause()
                         self.status(event[2]+" 已暂停，检查后点击重试当前问题。",True)
                     self.active=None
-                    self.next_request_at=time.monotonic()+1
+                    LOG.info("request ended id=%s state=%s first=%.2f seconds=%.2f",event[1],item.state,item.first_s,item.elapsed_s)
+                    self.next_request_at=time.monotonic()+0.2
                     changed=True
                 elif kind=="test":
                     self.test_busy=False
@@ -659,7 +796,31 @@ class Assistant:
             self.refresh()
         self.check_overlap()
         self.dispatch()
-        self.root.after(100,self.poll)
+
+    def refresh_progress(self):
+        provider="本地 Ollama / "+self.local_model if self.provider=="ollama" else "DeepSeek 云端"
+        if self.test_busy:
+            detail="正在测试 / 预热，已等待 %.0f 秒"%(time.monotonic()-self.test_started)
+        elif self.active is not None:
+            item=self.records[self.active]
+            detail=("正在取消请求" if self.cancel.is_set() else "等待首字" if item.first_s<0 else "逐字生成中")+"，已用 %.0f 秒"%(time.monotonic()-item.started)
+        else:
+            pending=sum(r.state=="待生成" for r in self.records)
+            detail=("等待 %s 条"%pending) if self.generating else "生成已暂停"
+        self.progress_label.configure(text=provider+" · "+detail)
+
+    def poll(self):
+        try:
+            self.poll_once()
+            self.refresh_progress()
+        except Exception:
+            LOG.exception("GUI polling failed; generation stopped")
+            self.generating=False
+            self.monitor_stop.set()
+            self.cancel.set()
+            self.status("界面处理发生错误，生成已停止。诊断记录位于设置文件旁的 diagnostics.log；请手动重试。",True)
+        finally:
+            self.root.after(100,self.poll)
 
     def close(self):
         self.monitor_stop.set()

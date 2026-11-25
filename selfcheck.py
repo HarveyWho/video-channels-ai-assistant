@@ -23,7 +23,8 @@ def run(report_path):
             samples.append({"fixture":name,"questions":questions})
         report["synthetic_ocr"]=samples
         import tkinter as tk
-        from app import Assistant
+        from app import Assistant,VERSION
+        report["app_version"]=VERSION
         root=tk.Tk()
         root.withdraw()
         try:

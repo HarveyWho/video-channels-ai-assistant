@@ -1,5 +1,15 @@
 name: Windows release
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.py'
+      - 'core.py'
+      - 'vision.py'
+      - 'selfcheck.py'
+      - 'package.py'
+      - 'requirements*.txt'
+      - '.github/workflows/windows-release.yml'
   release:
     types: [published]
   workflow_dispatch:
@@ -11,6 +21,8 @@ jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 25
+    outputs:
+      version_tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -24,6 +36,16 @@ jobs:
             requirements build.txt
       - name: Install build dependencies
         run: python -m pip install -r "requirements build.txt"
+      - name: Read the app version without starting the GUI
+        id: version
+        shell: python
+        run: |
+          import ast, os, pathlib, re
+          module = ast.parse(pathlib.Path('app.py').read_text(encoding='utf-8'))
+          version = next(ast.literal_eval(n.value) for n in module.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'VERSION' for t in n.targets))
+          assert re.fullmatch(r'\d+\.\d+\.\d+(?:-rc\d+)?', version)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('tag=v' + version + '\n')
       - name: Test core behavior
         run: python -m unittest -v tests
       - name: Check OCR and GUI construction from source
@@ -58,18 +80,37 @@ jobs:
           if-no-files-found: ignore
 
   publish:
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
           name: Windows package
           path: release
-      - name: Upload the verified package to the existing release
+      - name: Publish only the verified package from this source commit
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" "release/Live.Answer.Assistant.Windows.zip" "release/SHA256.txt" --repo "$GITHUB_REPOSITORY" --clobber
+          APP_TAG: ${{ needs.build.outputs.version_tag }}
+        run: |
+          tag="${RELEASE_TAG:-$APP_TAG}"
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+            if [ "$head" != "$GITHUB_SHA" ]; then
+              echo "A newer main commit exists; this older build will not publish."
+              exit 0
+            fi
+          fi
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            existing=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '.object.sha')
+            test "$existing" = "$GITHUB_SHA" || { echo "Version already belongs to another commit. Bump VERSION before publishing."; exit 1; }
+            gh release upload "$tag" "release/Live.Answer.Assistant.Windows.zip" "release/SHA256.txt" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "release/Live.Answer.Assistant.Windows.zip" "release/SHA256.txt" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$tag · 本地模型与响应诊断试播版" --prerelease --notes-file "Release Notes.txt"
+          fi

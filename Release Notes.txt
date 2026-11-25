@@ -1,0 +1,24 @@
+本地模型与响应诊断试播版
+
+Windows 下载：在下方 Assets 中下载 Live.Answer.Assistant.Windows.zip，完整解压后运行 Live Answer Assistant.exe。保留 _internal 文件夹。标题应显示 v0.2.0-rc1。
+
+本地生成需要单独安装 Ollama 和模型，助手 ZIP 不包含数 GB 的生成模型。
+1. 从 https://ollama.com/download/windows 安装最新版 Ollama。
+2. 在新开的 PowerShell 中执行：ollama pull qwen3.5:2b
+3. 助手“模型与资料设置”选择本地 Ollama，模型为 qwen3.5:2b。
+4. 点击测试连接 / 预热，检查首字和完整回答耗时，再应用设置。
+
+改进：
+- 支持本机 Ollama 的流式回答，关闭思考输出，模型保留在内存 10 分钟；不自动转发云端。
+- 固定问答可以从你填写的“问 / 答”原文直接返回，不等待模型；严格匹配，避免混淆数字与价格。
+- 默认处理当前可见问题；增加重读当前弹幕和过滤、重复、入队数量提示。
+- 显示等待首字及耗时，增加超时和取消处理，避免网络读取一直等待。
+- 增加不主动记录问题、答案和密钥的本地诊断记录。
+- 选中或手动提交的待生成问题优先处理；仍保留正在阅读的答案，不自动顶走。
+
+Surface Laptop 3 / 16GB 可以尝试小模型，但直播编码、OCR 与 CPU 推理会竞争资源，不保证秒回或完全准确。先以 2B 模型实测，重要信息仍需主播确认。首次加载请先预热。
+
+发布流程包含 Windows 核心检查、人工样张 OCR 与界面构造自检、打包后 EXE 自检；不代表真实 Surface、真实直播弹幕或用户的 DeepSeek 连接已经通过测试。
+
+完整配置和故障处理：https://github.com/HarveyWho/video-channels-ai-assistant
+程序未签名，保留安全软件保护。反馈前移除密钥与私人信息。MIT 许可，第三方组件保留各自许可。
