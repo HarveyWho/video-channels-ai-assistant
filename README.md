@@ -10,6 +10,16 @@ Windows 视频号直播伴侣开播时，在本机识别评论问题，并在悬
 
 GitHub 单个文件上限为 2 GiB，因此完整包按 1800 MiB 分卷。模型只放在 Releases 下载资产中，不放入 Git 源码历史。**需要下载安装工具 ZIP 和全部离线分卷**，不能只下载第一卷。
 
+完整包总下载约 **6.4GB**，请下载下面 **全部 5 个文件**：
+
+| 文件 | 大小 | 下载 |
+|---|---:|---|
+| 安装与解压工具 | 约 1.1MB | [Windows.Offline.Setup.zip](https://github.com/HarveyWho/video-channels-ai-assistant/releases/download/v0.3.0-rc1/Windows.Offline.Setup.zip) |
+| 第 1 卷 | 约 1.89GB | [Offline.7z.001](https://github.com/HarveyWho/video-channels-ai-assistant/releases/download/v0.3.0-rc1/Live.Answer.Assistant.Offline.7z.001) |
+| 第 2 卷 | 约 1.89GB | [Offline.7z.002](https://github.com/HarveyWho/video-channels-ai-assistant/releases/download/v0.3.0-rc1/Live.Answer.Assistant.Offline.7z.002) |
+| 第 3 卷 | 约 1.89GB | [Offline.7z.003](https://github.com/HarveyWho/video-channels-ai-assistant/releases/download/v0.3.0-rc1/Live.Answer.Assistant.Offline.7z.003) |
+| 第 4 卷 | 约 734MB | [Offline.7z.004](https://github.com/HarveyWho/video-channels-ai-assistant/releases/download/v0.3.0-rc1/Live.Answer.Assistant.Offline.7z.004) |
+
 1. 在一个空文件夹中保存 `Windows.Offline.Setup.zip` 和全部 `Live.Answer.Assistant.Offline.7z.001`、`.002`、`.003`……文件。以下载页实际列出的最后一卷为准；不要改文件名。
 2. 右键 `Windows.Offline.Setup.zip` → **全部解压**。工具解压到当前文件夹或它的一个子文件夹都可以；不要在 ZIP 预览窗口中直接运行。
 3. 双击解压出来的 **Install Offline.cmd**。脚本先检查每卷的大小与 SHA256，再解压完整软件。工具已自带 7-Zip，无需另外安装解压软件、Python 或 Ollama，也不需要管理员权限。

@@ -1,93 +1,36 @@
 {
   "version": "0.3.0-rc1",
-  "release_status": "Windows offline build pending",
-  "bundled_models": [
-    "qwen3.5:2b",
-    "qwen3.5:4b"
+  "release_status": "published; offline volumes, portable runtime and both model responses verified",
+  "release_url": "https://github.com/HarveyWho/video-channels-ai-assistant/releases/tag/v0.3.0-rc1",
+  "packaged_source_commit": "8c7ebc126bae7361bf4ea491b43ecd962ef80342",
+  "windows_build_run": "https://github.com/HarveyWho/video-channels-ai-assistant/actions/runs/45631894345",
+  "windows_build_note": "Core, OCR/GUI, frozen EXE, both model responses, split archive and final installer passed. Initial draft publication lookup failed; publication recovered by the verified finalization run.",
+  "publication_verification_run": "https://github.com/HarveyWho/video-channels-ai-assistant/actions/runs/45634642051",
+  "latest_windows_checks_run": "https://github.com/HarveyWho/video-channels-ai-assistant/actions/runs/45634642042",
+  "packaged_source_tests": 31,
+  "latest_source_tests": 32,
+  "python_versions": [
+    "3.11",
+    "3.12",
+    "3.13"
   ],
-  "automated_checks": "31 tests locally, Windows installer integration skipped on macOS",
-  "real_surface_speed_verified": false,
-  "previous_release": "v0.2.0-rc1",
-  "previous_validation": {
-    "date": "2026-11-25",
-    "version": "0.2.0-rc1",
-    "release_status": "published; Windows checks and packaged self-check passed",
-    "core_tests": 27,
-    "core_test_result": "passed locally",
-    "local_self_check": {
-      "status": "passed",
-      "platform": "darwin",
-      "api_called": false,
-      "synthetic_ocr": [
-        {
-          "fixture": "Light Comments.png",
-          "questions": [
-            "五年级开始准备来得及吗?",
-            "一周安排几次课比较合适?",
-            "请问怎么报名?"
-          ]
-        },
-        {
-          "fixture": "Dark Comments.png",
-          "questions": [
-            "五年级开始准备来得及吗?",
-            "一周安排几次课比较合适?",
-            "请问怎么报名?"
-          ]
-        }
-      ],
-      "app_version": "0.2.0-rc1",
-      "gui_constructed": true
-    },
-    "local_inference_test": {
-      "platform": "Mac, not Surface",
-      "already_installed_model": "qwen3:8b",
-      "first_seconds": 4.91,
-      "total_seconds": 6.04,
-      "scope": "API compatibility and a connection-check reply; not a model-quality benchmark"
-    },
-    "surface_speed_verified": false,
-    "qwen35_2b_on_surface_verified": false,
-    "real_deepseek_verified": false,
-    "repository_url": "https://github.com/HarveyWho/video-channels-ai-assistant",
-    "files": {
-      ".gitattributes": "ad08e1360ba17c178e48d1bd18770508d1c1ddfca750f892427d0db864277447",
-      ".github/workflows/checks.yml": "c947158ee18ebe15af163b88229687d0536f5569a260988b3cda440b7723e5e4",
-      ".github/workflows/windows-release.yml": "57556e3120530267a3bc14f39e37e3c73467eb2437df83b5afe6af3e3489cd7e",
-      ".gitignore": "e33cd382a8568512e1472dbabe4bcbdf922279c7bdcfd853b51b0f11f1cc49cb",
-      "LICENSE": "74a3c86342ddbfa13a1cc6b970f444cf779f45e534b15314ed4fa0a9228a5444",
-      "PRIVACY.md": "7a98339bba79325715543d3f1987119582bc99e46897cbbf2b35b4133ffcaaa4",
-      "README.md": "e55c48781cc0062e963a28d50304b5bfe5f41d45a336b702a35efb104f4aea6c",
-      "Release Notes.txt": "51a3d7b0f295a7f2b4591dda47c18cc8f99e0ad1377cc1df2da7c8b50d1842c7",
-      "Start.bat": "cf5f78fb9b1afcd48312f665af0f8a2b599a573e0136874ff0bccfcd3bcdac0a",
-      "THIRD PARTY NOTICES.md": "0237c5369452415f4b094ca88c12a8263699898351c68f40f625391329455435",
-      "Windows 下载和测试.txt": "0b36f1caaa3083fe98fa95ee7c1e2696f556a94b2ffcb1d82907f87d040318eb",
-      "app.py": "f0c8a4eebc22ce1b03e613bcba61e338dd300963c5e0ad52c4a9ce6150e3d7f9",
-      "assets/Dark Comments.png": "c7c3776dbc452977d065bd6b2045910351379eb11d83fcad12dfcd72b7181291",
-      "assets/Light Comments.png": "bbb278118c2fdfed21b25f78693efd125ace6da546e0207a511fed3614f4c64e",
-      "bootstrap.py": "786b218f4a337d99114c143de01f9cf140188eef11853a09ea88e15decb962ea",
-      "core.py": "835e5ad6dfe33fcc28ab51d9d7b2f93beb9b75584a9f037419a83c448a96d4f6",
-      "package.py": "e7dc86a7bd28bea0e1e377457d59a199ce6568867507dccb3a130beeac450bb8",
-      "requirements build.txt": "62d2297563d627ecc05af21002ca3659ca1714957a089e0d5a7e40ebdd2e5ed1",
-      "requirements.txt": "5771c97133428a2f29c72b19ae9b3ea0fcf8ff2200f38cb46e4436271b410211",
-      "selfcheck.py": "87d87637ec623b2a67e885849aa5962fca74649adc3c7073821e741980327e4a",
-      "tests.py": "2e31c4aeeee5a82d6eb33b5fef15a2f6f21906064b5f4220f7838aa72369e1fe",
-      "vision.py": "48e545cb0f5726f39003ed83dd57360bd49d7f62d58442b1c5c8f613b25093de",
-      "使用说明.md": "a5f8513cbd8210e13f26bd13748a47c76e9d711d50c52eb723adcadc4d47932a",
-      "先读我.txt": "f2f04bc98e77ec6c23107b8c4b78492f4334da6f787dbf860263e3785e120905"
-    },
-    "release_source_commit": "a066aeae140e9b99e6e39a450fe86b6e4d043db6",
-    "windows_core_checks": "passed on Python 3.11, 3.12 and 3.13",
-    "windows_release_run": "https://github.com/HarveyWho/video-channels-ai-assistant/actions/runs/45604872031",
-    "release_url": "https://github.com/HarveyWho/video-channels-ai-assistant/releases/tag/v0.2.0-rc1",
-    "release_zip_sha256": "b5a20a68d48bd9c60334f0bdfc976c253109e554c5d4ea58fcf920589d491978",
-    "local_inference_test_latest": {
-      "platform": "Mac, not Surface",
-      "model": "qwen3:8b (already installed)",
-      "state": "warm connection-check prompt",
-      "first_s": 0.12,
-      "total_s": 1.34,
-      "scope": "interface compatibility; not a Surface or Qwen3.5-2B performance claim"
+  "bundled_models": {
+    "ollama_version": "v0.40.18",
+    "ollama_windows_sha256": "ca97292ac1e9acc77fcf473bb2741fa6acd12e3798f261b419680068b7cc4c16",
+    "models": {
+      "2b": "0689d44085e06d165161a8a9a1731344278cfb5aade63a3c3dbdb48ab54b130a",
+      "4b": "d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04"
     }
+  },
+  "real_surface_speed_verified": false,
+  "real_livestream_verified": false,
+  "download_bytes": 6397405297,
+  "unpacked_bytes": 6396259993,
+  "source_files": {
+    "app.py": "1234ebf9de2390ae0819c8911c8a2d7f7e95ef56bb34a4d193409d2c51b26c89",
+    "core.py": "835e5ad6dfe33fcc28ab51d9d7b2f93beb9b75584a9f037419a83c448a96d4f6",
+    "vision.py": "48e545cb0f5726f39003ed83dd57360bd49d7f62d58442b1c5c8f613b25093de",
+    "local_runtime.py": "0f558c1c348d18c28f8602d8e159026cad48c99173e3500bdc2d78873a5d4a88",
+    "build_offline.py": "a76d3ea4e55687852f86665c0e3a3662303be34027a9ebfa4b5ff9164b2ca0a5"
   }
 }

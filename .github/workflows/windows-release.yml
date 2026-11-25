@@ -85,8 +85,8 @@ jobs:
           path: |
             Source Self Check.json
             ${{ runner.temp }}/*Self Check.json
-            release/Bundled Model Check.json
-            release/Offline Package.json
+            release/Bundled*Check.json
+            release/Offline*Package.json
             release/SHA256.txt
           if-no-files-found: ignore
           retention-days: 14
