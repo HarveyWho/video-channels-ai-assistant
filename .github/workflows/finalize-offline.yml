@@ -24,7 +24,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PYTHONUTF8: '1'
         run: |
-          import json, os, pathlib, subprocess, tempfile
+          import json, os, pathlib, subprocess, tempfile, sys
+          sys.path.insert(0, os.getcwd())
           from publish_release import gh
           from build_offline import sha256
           repo = os.environ['GITHUB_REPOSITORY']
