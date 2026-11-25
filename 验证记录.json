@@ -1,7 +1,7 @@
 {
   "date": "2026-11-25",
   "version": "0.2.0-rc1",
-  "release_status": "source ready; Windows build pending",
+  "release_status": "published; Windows checks and packaged self-check passed",
   "core_tests": 27,
   "core_test_result": "passed locally",
   "local_self_check": {
@@ -56,14 +56,27 @@
     "assets/Dark Comments.png": "c7c3776dbc452977d065bd6b2045910351379eb11d83fcad12dfcd72b7181291",
     "assets/Light Comments.png": "bbb278118c2fdfed21b25f78693efd125ace6da546e0207a511fed3614f4c64e",
     "bootstrap.py": "786b218f4a337d99114c143de01f9cf140188eef11853a09ea88e15decb962ea",
-    "core.py": "ed16ef910a018875f6e93790d0ae88a59e1405de1a09a3170bd4498978e4d9a7",
+    "core.py": "835e5ad6dfe33fcc28ab51d9d7b2f93beb9b75584a9f037419a83c448a96d4f6",
     "package.py": "e7dc86a7bd28bea0e1e377457d59a199ce6568867507dccb3a130beeac450bb8",
     "requirements build.txt": "62d2297563d627ecc05af21002ca3659ca1714957a089e0d5a7e40ebdd2e5ed1",
     "requirements.txt": "5771c97133428a2f29c72b19ae9b3ea0fcf8ff2200f38cb46e4436271b410211",
     "selfcheck.py": "87d87637ec623b2a67e885849aa5962fca74649adc3c7073821e741980327e4a",
-    "tests.py": "efe3e1f2a35d13be1ea0216e6b1b026d0615e9160d195b636448f8a4758311c7",
+    "tests.py": "2e31c4aeeee5a82d6eb33b5fef15a2f6f21906064b5f4220f7838aa72369e1fe",
     "vision.py": "48e545cb0f5726f39003ed83dd57360bd49d7f62d58442b1c5c8f613b25093de",
     "使用说明.md": "a5f8513cbd8210e13f26bd13748a47c76e9d711d50c52eb723adcadc4d47932a",
     "先读我.txt": "f2f04bc98e77ec6c23107b8c4b78492f4334da6f787dbf860263e3785e120905"
+  },
+  "release_source_commit": "a066aeae140e9b99e6e39a450fe86b6e4d043db6",
+  "windows_core_checks": "passed on Python 3.11, 3.12 and 3.13",
+  "windows_release_run": "https://github.com/HarveyWho/video-channels-ai-assistant/actions/runs/45604872031",
+  "release_url": "https://github.com/HarveyWho/video-channels-ai-assistant/releases/tag/v0.2.0-rc1",
+  "release_zip_sha256": "b5a20a68d48bd9c60334f0bdfc976c253109e554c5d4ea58fcf920589d491978",
+  "local_inference_test_latest": {
+    "platform": "Mac, not Surface",
+    "model": "qwen3:8b (already installed)",
+    "state": "warm connection-check prompt",
+    "first_s": 0.12,
+    "total_s": 1.34,
+    "scope": "interface compatibility; not a Surface or Qwen3.5-2B performance claim"
   }
 }
