@@ -8,7 +8,7 @@ from build_offline import sha256
 
 
 def gh(*args):
-    return subprocess.check_output(["gh", *args], text=True).strip()
+    return subprocess.check_output(["gh", *args], encoding="utf-8").strip()
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     module = ast.parse(Path("app.py").read_text(encoding="utf-8"))
     version = next(ast.literal_eval(n.value) for n in module.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "VERSION" for t in n.targets))
     tag = "v"+version
-    existing = subprocess.run(["gh", "release", "view", tag, "--repo", repo, "--json", "isDraft,targetCommitish"], capture_output=True, text=True)
+    existing = subprocess.run(["gh", "release", "view", tag, "--repo", repo, "--json", "isDraft,targetCommitish"], capture_output=True, encoding="utf-8")
     if existing.returncode == 0:
         data = json.loads(existing.stdout)
         if not data["isDraft"] or data["targetCommitish"] != commit:
