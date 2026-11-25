@@ -69,7 +69,10 @@ class PortableTests(unittest.TestCase):
             (setup/'Offline Package.json').write_text(json.dumps(metadata))
             env=os.environ.copy();env['LIVE_ASSISTANT_SETUP_TEST']='1'
             def install():
-                return subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(setup/'Install Offline.ps1')],env=env,capture_output=True).returncode
+                result=subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(setup/'Install Offline.ps1')],env=env,capture_output=True)
+                if result.returncode:
+                    print(result.stdout.decode(errors='replace'), result.stderr.decode(errors='replace'))
+                return result.returncode
             original=archive.read_bytes()
             archive.write_bytes(original[:-1])
             self.assertEqual(install(),1)
