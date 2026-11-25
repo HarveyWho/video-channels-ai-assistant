@@ -77,6 +77,7 @@ class StreamingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.received=[]
+        cls.stalled=threading.Event()
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*args):
                 pass
@@ -116,6 +117,7 @@ class StreamingTests(unittest.TestCase):
                 self.send_header('Content-Type','text/event-stream')
                 self.end_headers()
                 if self.path=="/stall":
+                    cls.stalled.set()
                     time.sleep(1)
                     return
                 if self.path=="/heartbeat":
@@ -189,14 +191,21 @@ class StreamingTests(unittest.TestCase):
     def test_cancel_interrupts_a_blocked_read(self):
         client=DeepSeekClient('http://127.0.0.1:%s/stall'%self.server.server_port,first_timeout=2,total_timeout=3)
         cancel=threading.Event()
-        timer=threading.Timer(.15,cancel.set)
-        timer.start()
-        started=time.monotonic()
-        try:
-            with self.assertRaises(Cancelled):
+        self.stalled.clear()
+        outcome=[]
+        def call():
+            try:
                 list(client.stream('test-key','问题','','',cancel))
-        finally:
-            timer.cancel()
+            except Exception as exc:
+                outcome.append(exc)
+        worker=threading.Thread(target=call,daemon=True)
+        worker.start()
+        self.assertTrue(self.stalled.wait(3),'mock server did not start its stalled response')
+        started=time.monotonic()
+        cancel.set()
+        worker.join(.8)
+        self.assertFalse(worker.is_alive(),'cancel did not wake the blocked HTTP read')
+        self.assertIsInstance(outcome[0],Cancelled)
         self.assertLess(time.monotonic()-started,.8)
 
     def test_total_timeout_stops_a_stream_that_keeps_sending_heartbeats(self):

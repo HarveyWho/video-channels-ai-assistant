@@ -79,6 +79,14 @@ class StreamGuard:
                 sock.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
+            # SocketIO retains makefile references on Windows. Detach before
+            # closing the OS handle so a blocked read wakes without double-close.
+            try:
+                handle=sock.detach()
+                if handle>=0:
+                    socket.close(handle)
+            except OSError:
+                pass
 
     def watch(self):
         while not self.stopped.wait(0.05):
@@ -315,7 +323,7 @@ class DeepSeekClient:
                 503: "DeepSeek 服务繁忙，请稍后重试。",
             }
             raise ApiError(messages.get(exc.code, "DeepSeek 连接失败（HTTP %s），请稍后重试。" % exc.code)) from None
-        except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError, OSError, http.client.HTTPException):
+        except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError, OSError, http.client.HTTPException, ValueError):
             guard.check()
             if cancel.is_set():
                 raise Cancelled() from None
@@ -377,6 +385,6 @@ class OllamaClient:
             if exc.code==404:
                 raise ApiError("本地模型尚未安装，请先执行 ollama pull "+self.model) from None
             raise ApiError("Ollama 请求失败（HTTP %s），请检查服务和模型。"%exc.code) from None
-        except (urllib.error.URLError,socket.timeout,TimeoutError,ConnectionError,OSError,http.client.HTTPException):
+        except (urllib.error.URLError,socket.timeout,TimeoutError,ConnectionError,OSError,http.client.HTTPException,ValueError):
             guard.check()
             raise ApiError("无法连接本机 Ollama，或模型等待超时。请打开 Ollama，并先点击测试并预热。") from None
